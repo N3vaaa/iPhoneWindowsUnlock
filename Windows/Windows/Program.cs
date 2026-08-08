@@ -3,11 +3,18 @@ using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Bluetooth.Rfcomm;
+using Windows.Storage.Streams;
 
 namespace iPhoneWindowsUnlock;
 
 internal class Program
 {
+    private const string Service2Uuid =
+        "02030302-1D19-415F-86F2-22A2106A0A77";
+
+    private const string Service3Uuid =
+        "00000000-DECA-FADE-DECA-DEAFDECAcAFE";
+
     static async Task Main()
     {
         Console.Title = "iPhoneWindowsUnlock";
@@ -44,123 +51,213 @@ internal class Program
             if (iPhone == null)
             {
                 Console.WriteLine("❌ Aucun iPhone détecté.");
+                WaitAndExit();
+                return;
             }
-            else
+
+            Console.WriteLine("✅ iPhone détecté !");
+            Console.WriteLine();
+            Console.WriteLine($"Nom : {iPhone.Name}");
+            Console.WriteLine($"ID  : {iPhone.Id}");
+            Console.WriteLine();
+
+            Console.WriteLine("Ouverture du périphérique Bluetooth...");
+
+            using BluetoothDevice? bluetoothDevice =
+                await BluetoothDevice.FromIdAsync(iPhone.Id);
+
+            if (bluetoothDevice == null)
             {
-                Console.WriteLine("✅ iPhone détecté !");
                 Console.WriteLine();
-                Console.WriteLine($"Nom : {iPhone.Name}");
-                Console.WriteLine($"ID  : {iPhone.Id}");
-                Console.WriteLine();
+                Console.WriteLine("❌ Impossible d'ouvrir l'iPhone.");
+                WaitAndExit();
+                return;
+            }
 
-                Console.WriteLine(
-                    "Ouverture du périphérique Bluetooth..."
-                );
+            Console.WriteLine();
+            Console.WriteLine("✅ Périphérique Bluetooth ouvert !");
+            Console.WriteLine();
 
-                using BluetoothDevice? bluetoothDevice =
-                    await BluetoothDevice.FromIdAsync(iPhone.Id);
+            Console.WriteLine("Recherche des services RFCOMM...");
 
-                if (bluetoothDevice == null)
+            var result =
+                await bluetoothDevice.GetRfcommServicesAsync();
+
+            Console.WriteLine();
+            Console.WriteLine(
+                $"✅ {result.Services.Count} services RFCOMM trouvés."
+            );
+            Console.WriteLine();
+
+            foreach (RfcommDeviceService service in result.Services)
+            {
+                string uuid = service.ServiceId.AsString();
+
+                if (uuid.Equals(
+                        Service2Uuid,
+                        StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine();
-                    Console.WriteLine(
-                        "❌ Impossible d'ouvrir le périphérique."
+                    await InspectServiceAsync(
+                        service,
+                        "SERVICE 2"
+                    );
+                }
+                else if (uuid.Equals(
+                             Service3Uuid,
+                             StringComparison.OrdinalIgnoreCase))
+                {
+                    await InspectServiceAsync(
+                        service,
+                        "SERVICE 3"
                     );
                 }
                 else
                 {
-                    Console.WriteLine();
-                    Console.WriteLine(
-                        "✅ Périphérique Bluetooth ouvert !"
-                    );
-
-                    Console.WriteLine();
-                    Console.WriteLine(
-                        "Recherche des services RFCOMM..."
-                    );
-
-                    var result =
-                        await bluetoothDevice.GetRfcommServicesAsync();
-
-                    Console.WriteLine();
-
-                    if (result.Services.Count == 0)
-                    {
-                        Console.WriteLine(
-                            "❌ Aucun service RFCOMM trouvé."
-                        );
-                    }
-                    else
-                    {
-                        Console.WriteLine(
-                            $"✅ {result.Services.Count} services RFCOMM trouvés."
-                        );
-
-                        Console.WriteLine();
-
-                        int number = 1;
-
-                        foreach (RfcommDeviceService service
-                                 in result.Services)
-                        {
-                            Console.WriteLine(
-                                $"========== SERVICE {number} =========="
-                            );
-
-                            Console.WriteLine(
-                                $"UUID : {service.ServiceId.AsString()}"
-                            );
-
-                            try
-                            {
-                                Console.WriteLine(
-                                    $"Short ID : 0x{service.ServiceId.AsShortId():X4}"
-                                );
-                            }
-                            catch
-                            {
-                                Console.WriteLine(
-                                    "Short ID : non disponible"
-                                );
-                            }
-
-                            Console.WriteLine(
-                                $"Nom de connexion : {service.ConnectionServiceName}"
-                            );
-
-                            Console.WriteLine(
-                                $"Hôte : {service.ConnectionHostName}"
-                            );
-
-                            Console.WriteLine(
-                                $"Protection max : {service.MaxProtectionLevel}"
-                            );
-
-                            Console.WriteLine(
-                                $"Protection actuelle : {service.ProtectionLevel}"
-                            );
-
-                            Console.WriteLine();
-
-                            service.Dispose();
-
-                            number++;
-                        }
-                    }
+                    service.Dispose();
                 }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine();
-            Console.WriteLine("❌ Erreur Bluetooth.");
+            Console.WriteLine("❌ ERREUR");
             Console.WriteLine();
-            Console.WriteLine($"Type : {ex.GetType().Name}");
+            Console.WriteLine($"Type    : {ex.GetType().Name}");
             Console.WriteLine($"Message : {ex.Message}");
         }
 
+        WaitAndExit();
+    }
+
+    private static async Task InspectServiceAsync(
+        RfcommDeviceService service,
+        string serviceName)
+    {
+        try
+        {
+            Console.WriteLine("=================================");
+            Console.WriteLine($"        {serviceName}");
+            Console.WriteLine("=================================");
+            Console.WriteLine();
+
+            Console.WriteLine(
+                $"UUID : {service.ServiceId.AsString()}"
+            );
+
+            Console.WriteLine(
+                $"Nom de connexion : {service.ConnectionServiceName}"
+            );
+
+            Console.WriteLine(
+                $"Hôte : {service.ConnectionHostName}"
+            );
+
+            Console.WriteLine(
+                $"Protection max : {service.MaxProtectionLevel}"
+            );
+
+            Console.WriteLine(
+                $"Protection actuelle : {service.ProtectionLevel}"
+            );
+
+            Console.WriteLine();
+            Console.WriteLine("Lecture des attributs SDP...");
+            Console.WriteLine();
+
+            var attributes =
+                await service.GetSdpRawAttributesAsync(
+                    BluetoothCacheMode.Uncached
+                );
+
+            if (attributes == null || attributes.Count == 0)
+            {
+                Console.WriteLine(
+                    "⚠️ Aucun attribut SDP disponible."
+                );
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"✅ {attributes.Count} attribut(s) SDP trouvé(s)."
+                );
+
+                Console.WriteLine();
+
+                foreach (var attribute in attributes)
+                {
+                    Console.WriteLine(
+                        $"--- Attribut 0x{attribute.Key:X4} ---"
+                    );
+
+                    byte[] data =
+                        BufferToBytes(attribute.Value);
+
+                    Console.WriteLine(
+                        $"Taille : {data.Length} octet(s)"
+                    );
+
+                    Console.WriteLine(
+                        $"Données : {ToHex(data)}"
+                    );
+
+                    Console.WriteLine();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"❌ Impossible d'inspecter {serviceName}"
+            );
+
+            Console.WriteLine(
+                $"Type : {ex.GetType().Name}"
+            );
+
+            Console.WriteLine(
+                $"Message : {ex.Message}"
+            );
+
+            Console.WriteLine();
+        }
+        finally
+        {
+            service.Dispose();
+        }
+    }
+
+    private static byte[] BufferToBytes(IBuffer buffer)
+    {
+        if (buffer == null || buffer.Length == 0)
+            return Array.Empty<byte>();
+
+        byte[] data = new byte[buffer.Length];
+
+        using DataReader reader =
+            DataReader.FromBuffer(buffer);
+
+        reader.ReadBytes(data);
+
+        return data;
+    }
+
+    private static string ToHex(byte[] data)
+    {
+        if (data.Length == 0)
+            return "(vide)";
+
+        return BitConverter
+            .ToString(data)
+            .Replace("-", " ");
+    }
+
+    private static void WaitAndExit()
+    {
         Console.WriteLine();
-        Console.WriteLine("Appuyez sur une touche pour quitter...");
+        Console.WriteLine(
+            "Appuyez sur une touche pour quitter..."
+        );
+
         Console.ReadKey();
     }
 }

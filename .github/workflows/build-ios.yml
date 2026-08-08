@@ -1,4 +1,5 @@
-name: Build iOS
+name: Build iPhoneWindowsUnlock iOS
+
 
 on:
   workflow_dispatch:
@@ -7,81 +8,115 @@ on:
       - "iOS/**"
       - ".github/workflows/build-ios.yml"
 
+
 jobs:
+
   build:
+
     runs-on: macos-latest
+
 
     steps:
 
-      - name: Récupérer le dépôt
-        uses: actions/checkout@v4
+    - name: Récupérer le dépôt
+      uses: actions/checkout@v4
 
 
-      - name: Installer XcodeGen
-        run: brew install xcodegen
+
+    - name: Installer XcodeGen
+      run: |
+        brew install xcodegen
 
 
-      - name: Préparer le projet iOS
-        run: |
-          mkdir -p App
 
-          cp iOS/iPhoneWindowsUnlockApp.swift App/
+    - name: Préparer le projet iOS
+      run: |
 
-          cat > project.yml <<'EOF'
-          name: iPhoneWindowsUnlock
+        mkdir -p App
 
-          options:
-            bundleIdPrefix: com.n3vaaa
-
-          targets:
-            iPhoneWindowsUnlock:
-              type: application
-              platform: iOS
-              deploymentTarget: "17.0"
-
-              sources:
-                - App
-
-              settings:
-                base:
-                  PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
-                  SWIFT_VERSION: 5.0
-
-              info:
-                path: Info.plist
-                properties:
-                  NSBluetoothAlwaysUsageDescription:
-                    "Utilisation du Bluetooth pour communiquer avec le PC Windows."
-                  NSFaceIDUsageDescription:
-                    "Utilisation de Face ID pour authentifier l'utilisateur."
-          EOF
+        cp iOS/iPhoneWindowsUnlockApp.swift App/
 
 
-      - name: Générer le projet Xcode
-        run: xcodegen generate
+
+    - name: Créer project.yml Xcode
+      run: |
+
+        cat > project.yml <<EOF
+
+name: iPhoneWindowsUnlock
+
+options:
+
+  bundleIdPrefix: com.n3vaaa
 
 
-      - name: Compiler l'application
-        run: |
-          xcodebuild \
-            -project iPhoneWindowsUnlock.xcodeproj \
-            -scheme iPhoneWindowsUnlock \
-            -sdk iphonesimulator \
-            -configuration Release \
-            -derivedDataPath Build
+targets:
+
+  iPhoneWindowsUnlock:
+
+    type: application
+
+    platform: iOS
+
+    deploymentTarget: "17.0"
 
 
-      - name: Préparer le fichier App
-        run: |
-          mkdir -p Artifact
+    sources:
 
-          cp -R \
-          Build/Build/Products/Release-iphonesimulator/iPhoneWindowsUnlock.app \
-          Artifact/
+      - App
 
 
-      - name: Sauvegarder l'application
-        uses: actions/upload-artifact@v4
-        with:
-          name: iPhoneWindowsUnlock-app
-          path: Artifact/
+    settings:
+
+      base:
+
+        PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
+
+        SWIFT_VERSION: 5.0
+
+EOF
+
+
+
+    - name: Générer projet Xcode
+      run: |
+
+        xcodegen generate
+
+
+
+    - name: Compiler application
+      run: |
+
+        xcodebuild \
+        -project iPhoneWindowsUnlock.xcodeproj \
+        -scheme iPhoneWindowsUnlock \
+        -sdk iphoneos \
+        -configuration Release \
+        build \
+        CODE_SIGNING_ALLOWED=NO
+
+
+
+    - name: Créer archive IPA
+      run: |
+
+        mkdir Payload
+
+        cp -r \
+        Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app \
+        Payload/
+
+
+        zip -r iPhoneWindowsUnlock.ipa Payload
+
+
+
+    - name: Sauvegarder IPA
+      uses: actions/upload-artifact@v4
+
+      with:
+
+        name: iPhoneWindowsUnlock-ipa
+
+        path: iPhoneWindowsUnlock.ipa

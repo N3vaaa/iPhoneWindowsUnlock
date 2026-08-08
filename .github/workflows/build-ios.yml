@@ -97,12 +97,9 @@ jobs:
             "Build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app" \
             "Payload/iPhoneWindowsUnlock.app"
 
-          cd Payload
-
-          zip -r -9 ../iPhoneWindowsUnlock.ipa \
-            iPhoneWindowsUnlock.app
-
-          cd ..
+          zip -r -9 \
+            iPhoneWindowsUnlock.ipa \
+            Payload
 
           echo "IPA créée :"
           ls -lh iPhoneWindowsUnlock.ipa
@@ -120,6 +117,7 @@ jobs:
           unzip -l iPhoneWindowsUnlock.ipa
 
           echo "Vérification de Info.plist..."
+
           unzip -l iPhoneWindowsUnlock.ipa | grep -F \
             "Payload/iPhoneWindowsUnlock.app/Info.plist"
 

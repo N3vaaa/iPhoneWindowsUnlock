@@ -9,12 +9,6 @@ namespace iPhoneWindowsUnlock;
 
 internal class Program
 {
-    private const string Service2Uuid =
-        "02030302-1D19-415F-86F2-22A2106A0A77";
-
-    private const string Service3Uuid =
-        "00000000-DECA-FADE-DECA-DEAFDECAcAFE";
-
     static async Task Main()
     {
         Console.Title = "iPhoneWindowsUnlock";
@@ -99,6 +93,8 @@ internal class Program
 
             Console.WriteLine();
 
+            int number = 1;
+
             foreach (RfcommDeviceService service in result.Services)
             {
                 string uuid = service.ServiceId
@@ -106,34 +102,45 @@ internal class Program
                     .Trim('{', '}');
 
                 Console.WriteLine(
-                    $"Service détecté : {uuid}"
+                    $"Service détecté {number} : {uuid}"
                 );
 
-                if (uuid.Equals(
-                        Service2Uuid,
-                        StringComparison.OrdinalIgnoreCase))
+                /*
+                 * 0x112F = Phonebook Access
+                 * 0x111F = Hands-Free
+                 *
+                 * On ne les inspecte pas.
+                 *
+                 * Tous les autres services sont inspectés.
+                 */
+                bool isStandardService =
+                    uuid.Equals(
+                        "0000112F-0000-1000-8000-00805F9B34FB",
+                        StringComparison.OrdinalIgnoreCase)
+                    ||
+                    uuid.Equals(
+                        "0000111F-0000-1000-8000-00805F9B34FB",
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (!isStandardService)
                 {
                     await InspectServiceAsync(
                         service,
-                        "SERVICE 2"
+                        $"SERVICE {number}"
                     );
-
-                    continue;
                 }
-
-                if (uuid.Equals(
-                        Service3Uuid,
-                        StringComparison.OrdinalIgnoreCase))
+                else
                 {
-                    await InspectServiceAsync(
-                        service,
-                        "SERVICE 3"
+                    Console.WriteLine(
+                        "   → Service Bluetooth standard ignoré."
                     );
 
-                    continue;
+                    service.Dispose();
                 }
 
-                service.Dispose();
+                Console.WriteLine();
+
+                number++;
             }
         }
         catch (Exception ex)

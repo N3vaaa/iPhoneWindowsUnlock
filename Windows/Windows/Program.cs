@@ -6,7 +6,6 @@ using Windows.Devices.Bluetooth;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Bluetooth.Rfcomm;
 using Windows.Networking.Sockets;
-using Windows.Storage.Streams;
 
 namespace iPhoneWindowsUnlock;
 
@@ -26,44 +25,44 @@ internal class Program
 
         try
         {
-            Console.WriteLine("Recherche de votre iPhone...");
+            Console.WriteLine("Recherche iPhone...");
 
-            string selector =
-                BluetoothDevice.GetDeviceSelector();
+            var devices =
+                await DeviceInformation.FindAllAsync(
+                    BluetoothDevice.GetDeviceSelector());
 
-            DeviceInformationCollection devices =
-                await DeviceInformation.FindAllAsync(selector);
-
-            DeviceInformation? iPhone = null;
+            DeviceInformation? iphone = null;
 
             foreach (var device in devices)
             {
-                if (!string.IsNullOrWhiteSpace(device.Name) &&
-                    device.Name.Contains(
-                        "iPhone",
-                        StringComparison.OrdinalIgnoreCase))
+                if (device.Name.Contains(
+                    "iPhone",
+                    StringComparison.OrdinalIgnoreCase))
                 {
-                    iPhone = device;
+                    iphone = device;
                     break;
                 }
             }
 
-            if (iPhone == null)
+            if (iphone == null)
             {
-                Console.WriteLine("❌ iPhone introuvable");
+                Console.WriteLine(
+                    "❌ iPhone non trouvé");
                 Exit();
                 return;
             }
 
-            Console.WriteLine();
-            Console.WriteLine($"✅ {iPhone.Name} trouvé");
+            Console.WriteLine(
+                $"✅ Trouvé : {iphone.Name}");
 
             using BluetoothDevice? bluetooth =
-                await BluetoothDevice.FromIdAsync(iPhone.Id);
+                await BluetoothDevice.FromIdAsync(
+                    iphone.Id);
 
             if (bluetooth == null)
             {
-                Console.WriteLine("❌ Bluetooth impossible");
+                Console.WriteLine(
+                    "❌ Bluetooth impossible");
                 Exit();
                 return;
             }
@@ -76,34 +75,33 @@ internal class Program
 
             foreach (var service in services.Services)
             {
-                string uuid =
-                    service.ServiceId.AsString()
+                string id =
+                    service.ServiceId
+                    .AsString()
                     .Trim('{', '}');
 
-                if (uuid.Equals(
+                if (id.Equals(
                     IapServiceUuid,
                     StringComparison.OrdinalIgnoreCase))
                 {
                     iap = service;
+                    break;
                 }
-                else
-                {
-                    service.Dispose();
-                }
+
+                service.Dispose();
             }
 
             if (iap == null)
             {
                 Console.WriteLine(
-                    "❌ Service iAP absent");
+                    "❌ iAP introuvable");
                 Exit();
                 return;
             }
 
             Console.WriteLine();
             Console.WriteLine(
-                "Connexion Wireless iAP..."
-            );
+                "Connexion Wireless iAP...");
 
             using StreamSocket socket =
                 new StreamSocket();
@@ -115,91 +113,76 @@ internal class Program
                     .BluetoothEncryptionWithAuthentication);
 
             Console.WriteLine(
-                "🟢 Connexion établie"
-            );
+                "🟢 Connexion établie");
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "Écoute du canal pendant 15 secondes...");
+            Console.WriteLine(
+                "Aucune donnée envoyée.");
 
             Console.WriteLine();
 
-            Stream output =
-                socket.OutputStream.AsStreamForWrite();
-
-            Stream input =
+            using Stream input =
                 socket.InputStream.AsStreamForRead();
 
-            /*
-             * Test neutre :
-             * aucun ordre iPhone,
-             * juste une vérification du canal.
-             */
-            byte[] test =
-            {
-                0x00
-            };
+            byte[] buffer = new byte[1024];
 
-            Console.WriteLine(
-                "Envoi test canal..."
-            );
-
-            await output.WriteAsync(
-                test,
-                0,
-                test.Length);
-
-            await output.FlushAsync();
-
-            Console.WriteLine(
-                "Test envoyé."
-            );
-
-            Console.WriteLine(
-                "Attente réponse (5 secondes)..."
-            );
-
-            byte[] buffer = new byte[256];
-
-            using CancellationTokenSource cts =
+            using CancellationTokenSource timeout =
                 new CancellationTokenSource(
-                    TimeSpan.FromSeconds(5));
+                    TimeSpan.FromSeconds(15));
 
             try
             {
-                int count =
-                    await input.ReadAsync(
-                        buffer,
-                        0,
-                        buffer.Length,
-                        cts.Token);
+                int total = 0;
 
-                Console.WriteLine();
-
-                if (count > 0)
+                while (!timeout.IsCancellationRequested)
                 {
-                    Console.WriteLine(
-                        $"🟢 Réponse reçue : {count} octets"
-                    );
+                    int read =
+                        await input.ReadAsync(
+                            buffer,
+                            0,
+                            buffer.Length,
+                            timeout.Token);
 
-                    for (int i = 0; i < count; i++)
+                    if (read <= 0)
+                        break;
+
+                    total += read;
+
+                    Console.WriteLine(
+                        $"Données reçues : {read} octets");
+
+                    for (int i = 0; i < read; i++)
                     {
                         Console.Write(
-                            $"{buffer[i]:X2} "
-                        );
+                            $"{buffer[i]:X2} ");
                     }
 
                     Console.WriteLine();
+                }
+
+                if (total == 0)
+                {
+                    Console.WriteLine(
+                        "ℹ️ Aucun paquet reçu.");
                 }
             }
             catch (OperationCanceledException)
             {
                 Console.WriteLine(
-                    "ℹ️ Aucune réponse reçue."
-                );
+                    "ℹ️ Fin du délai d'écoute.");
             }
+
+            iap.Dispose();
         }
         catch (Exception ex)
         {
             Console.WriteLine();
-            Console.WriteLine("🔴 ERREUR");
-            Console.WriteLine(ex.Message);
+            Console.WriteLine(
+                "🔴 Erreur");
+            Console.WriteLine(
+                ex.Message);
         }
 
         Exit();
@@ -209,9 +192,7 @@ internal class Program
     {
         Console.WriteLine();
         Console.WriteLine(
-            "Appuyez sur une touche pour quitter..."
-        );
-
+            "Appuyez sur une touche pour quitter...");
         Console.ReadKey();
     }
 }

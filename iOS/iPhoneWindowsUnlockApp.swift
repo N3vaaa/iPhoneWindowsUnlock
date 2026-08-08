@@ -1,11 +1,10 @@
 import SwiftUI
-import CoreBluetooth
-
-let unlockServiceUUID = CBUUID(string: "7A1E0001-5B7A-4E91-9D21-123456789001")
-let unlockCharacteristicUUID = CBUUID(string: "7A1E0002-5B7A-4E91-9D21-123456789001")
+import LocalAuthentication
+import Security
 
 @main
 struct iPhoneWindowsUnlockApp: App {
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -13,163 +12,133 @@ struct iPhoneWindowsUnlockApp: App {
     }
 }
 
+
 struct ContentView: View {
-    @StateObject private var bluetooth = BluetoothManager()
+
+    @State private var status = "En attente"
+    @State private var keyStatus = "Aucune clé créée"
 
     var body: some View {
-        VStack(spacing: 20) {
+
+        VStack(spacing: 25) {
+
             Text("iPhone Windows Unlock")
                 .font(.title)
                 .bold()
 
-            Text(bluetooth.status)
+
+            Text(status)
                 .font(.headline)
 
-            Circle()
-                .fill(bluetooth.isReady ? .green : .orange)
-                .frame(width: 30, height: 30)
 
-            Text(bluetooth.isReady
-                 ? "Bluetooth LE actif"
-                 : "Initialisation du Bluetooth…")
+            Text(keyStatus)
+                .foregroundColor(.secondary)
 
-            Text("En attente du PC Windows…")
-                .foregroundStyle(.secondary)
+
+            Button {
+                authenticate()
+            } label: {
+                Text("🔐 Authentifier avec Face ID")
+                    .padding()
+            }
+            .buttonStyle(.borderedProminent)
+
         }
         .padding()
     }
-}
 
-final class BluetoothManager: NSObject, ObservableObject {
-    @Published var status = "Initialisation…"
-    @Published var isReady = false
 
-    private var peripheralManager: CBPeripheralManager!
+    func authenticate() {
 
-    private var responseCharacteristic: CBMutableCharacteristic!
+        let context = LAContext()
 
-    override init() {
-        super.init()
+        var error: NSError?
 
-        peripheralManager = CBPeripheralManager(
-            delegate: self,
-            queue: nil
-        )
-    }
+        guard context.canEvaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            error: &error
+        ) else {
 
-    private func startBluetoothService() {
-        let properties: CBCharacteristicProperties = [
-            .write,
-            .writeWithoutResponse,
-            .notify
-        ]
-
-        let permissions: CBAttributePermissions = [
-            .readable,
-            .writeable
-        ]
-
-        responseCharacteristic = CBMutableCharacteristic(
-            type: unlockCharacteristicUUID,
-            properties: properties,
-            value: nil,
-            permissions: permissions
-        )
-
-        let service = CBMutableService(
-            type: unlockServiceUUID,
-            primary: true
-        )
-
-        service.characteristics = [responseCharacteristic]
-
-        peripheralManager.removeAllServices()
-        peripheralManager.add(service)
-
-        peripheralManager.startAdvertising([
-            CBAdvertisementDataLocalNameKey: "iPhone Windows Unlock",
-            CBAdvertisementDataServiceUUIDsKey: [unlockServiceUUID]
-        ])
-
-        DispatchQueue.main.async {
-            self.status = "Service BLE actif"
-            self.isReady = true
+            status = "Face ID indisponible"
+            return
         }
-    }
-}
 
-extension BluetoothManager: CBPeripheralManagerDelegate {
 
-    func peripheralManagerDidUpdateState(
-        _ peripheral: CBPeripheralManager
-    ) {
-        DispatchQueue.main.async {
-            switch peripheral.state {
+        context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: "Autoriser le déverrouillage Windows"
+        ) { success, error in
 
-            case .poweredOn:
-                self.startBluetoothService()
 
-            case .poweredOff:
-                self.status = "Bluetooth désactivé"
-                self.isReady = false
+            DispatchQueue.main.async {
 
-            case .unauthorized:
-                self.status = "Autorisation Bluetooth refusée"
-                self.isReady = false
+                if success {
 
-            case .unsupported:
-                self.status = "Bluetooth LE non supporté"
-                self.isReady = false
+                    status = "✅ Face ID validé"
 
-            case .resetting:
-                self.status = "Bluetooth en réinitialisation…"
-                self.isReady = false
+                    createKey()
 
-            case .unknown:
-                self.status = "État Bluetooth inconnu"
-                self.isReady = false
+                } else {
 
-            @unknown default:
-                self.status = "État Bluetooth inconnu"
-                self.isReady = false
-            }
-        }
-    }
-
-    func peripheralManager(
-        _ peripheral: CBPeripheralManager,
-        didReceiveWrite requests: [CBATTRequest]
-    ) {
-        for request in requests {
-
-            guard request.characteristic.uuid == unlockCharacteristicUUID else {
-                peripheral.respond(
-                    to: request,
-                    withResult: .requestNotSupported
-                )
-                continue
-            }
-
-            if let data = request.value,
-               let message = String(data: data, encoding: .utf8) {
-
-                print("Message reçu : \(message)")
-
-                if message == "PING" {
-                    let response = Data("PONG".utf8)
-
-                    peripheral.updateValue(
-                        response,
-                        for: responseCharacteristic,
-                        onSubscribedCentrals: nil
-                    )
+                    status = "❌ Authentification refusée"
                 }
             }
+        }
+    }
 
-            peripheral.respond(
-                to: request,
-                withResult: .success
-            )
+
+    func createKey() {
+
+        let tag = "com.n3vaaa.iPhoneWindowsUnlock.key"
+
+        let tagData = tag.data(using: .utf8)!
+
+
+        let attributes: [String: Any] = [
+
+            kSecAttrKeyType as String:
+                kSecAttrKeyTypeECSECPrimeRandom,
+
+            kSecAttrKeySizeInBits as String:
+                256,
+
+            kSecPrivateKeyAttrs as String: [
+
+                kSecAttrIsPermanent as String:
+                    true,
+
+                kSecAttrApplicationTag as String:
+                    tagData,
+
+                kSecAccessControl as String:
+                    SecAccessControlCreateWithFlags(
+                        nil,
+                        kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+                        .biometryCurrentSet,
+                        nil
+                    )!
+            ]
+        ]
+
+
+        var error: Unmanaged<CFError>?
+
+
+        if let privateKey =
+            SecKeyCreateRandomKey(
+                attributes as CFDictionary,
+                &error
+            ) {
+
+            _ = privateKey
+
+            keyStatus =
+            "🔑 Clé sécurisée créée"
+
+        } else {
+
+            keyStatus =
+            "Erreur création clé"
         }
     }
 }

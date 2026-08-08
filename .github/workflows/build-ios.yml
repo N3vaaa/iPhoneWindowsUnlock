@@ -17,57 +17,52 @@ jobs:
         run: brew install xcodegen
 
 
-      - name: Préparer Swift
+      - name: Préparer application
         run: |
           mkdir App
-          cp iOS/iPhoneWindowsUnlockApp.swift App/
+          cp iOS/iPhoneWindowsUnlockApp.swift App/main.swift
 
 
-      - name: Créer configuration Xcode
+      - name: Créer project.yml
+        shell: bash
         run: |
-          cat > project.yml <<'EOF'
-name: iPhoneWindowsUnlock
-
-options:
-  bundleIdPrefix: com.n3vaaa
-
-targets:
-  iPhoneWindowsUnlock:
-    type: application
-    platform: iOS
-    deploymentTarget: "17.0"
-    sources:
-      - App
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
-        SWIFT_VERSION: 5.0
-EOF
+          echo 'name: iPhoneWindowsUnlock' > project.yml
+          echo '' >> project.yml
+          echo 'options:' >> project.yml
+          echo '  bundleIdPrefix: com.n3vaaa' >> project.yml
+          echo '' >> project.yml
+          echo 'targets:' >> project.yml
+          echo '  iPhoneWindowsUnlock:' >> project.yml
+          echo '    type: application' >> project.yml
+          echo '    platform: iOS' >> project.yml
+          echo '    deploymentTarget: "17.0"' >> project.yml
+          echo '    sources:' >> project.yml
+          echo '      - App' >> project.yml
 
 
-      - name: Générer projet
+      - name: Générer projet Xcode
         run: xcodegen generate
 
 
-      - name: Compiler iOS
+      - name: Compiler
         run: |
           xcodebuild \
           -project iPhoneWindowsUnlock.xcodeproj \
           -scheme iPhoneWindowsUnlock \
           -sdk iphoneos \
           -configuration Release \
-          build \
-          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_ALLOWED=NO \
+          build
 
 
       - name: Créer IPA
         run: |
-          mkdir -p Payload
+          mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app Payload/
           zip -r iPhoneWindowsUnlock.ipa Payload
 
 
-      - name: Publier IPA
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: iPhoneWindowsUnlock-ipa

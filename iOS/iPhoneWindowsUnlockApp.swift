@@ -16,7 +16,7 @@ struct iPhoneWindowsUnlockApp: App {
 struct ContentView: View {
 
     @State private var status = "En attente"
-    @State private var keyStatus = "Aucune clé créée"
+    @State private var keyStatus = "Aucune clé"
 
     var body: some View {
 
@@ -26,23 +26,18 @@ struct ContentView: View {
                 .font(.title)
                 .bold()
 
-
             Text(status)
-                .font(.headline)
-
 
             Text(keyStatus)
-                .foregroundColor(.secondary)
-
+                .foregroundColor(.gray)
 
             Button {
                 authenticate()
             } label: {
-                Text("🔐 Authentifier avec Face ID")
+                Text("🔐 Tester Face ID")
                     .padding()
             }
             .buttonStyle(.borderedProminent)
-
         }
         .padding()
     }
@@ -52,35 +47,21 @@ struct ContentView: View {
 
         let context = LAContext()
 
-        var error: NSError?
-
-        guard context.canEvaluatePolicy(
-            .deviceOwnerAuthenticationWithBiometrics,
-            error: &error
-        ) else {
-
-            status = "Face ID indisponible"
-            return
-        }
-
-
         context.evaluatePolicy(
             .deviceOwnerAuthenticationWithBiometrics,
             localizedReason: "Autoriser le déverrouillage Windows"
         ) { success, error in
-
 
             DispatchQueue.main.async {
 
                 if success {
 
                     status = "✅ Face ID validé"
-
                     createKey()
 
                 } else {
 
-                    status = "❌ Authentification refusée"
+                    status = "❌ Face ID refusé"
                 }
             }
         }
@@ -92,7 +73,6 @@ struct ContentView: View {
         let tag = "com.n3vaaa.iPhoneWindowsUnlock.key"
 
         let tagData = tag.data(using: .utf8)!
-
 
         let attributes: [String: Any] = [
 
@@ -108,37 +88,23 @@ struct ContentView: View {
                     true,
 
                 kSecAttrApplicationTag as String:
-                    tagData,
-
-                kSecAccessControl as String:
-                    SecAccessControlCreateWithFlags(
-                        nil,
-                        kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-                        .biometryCurrentSet,
-                        nil
-                    )!
+                    tagData
             ]
         ]
 
 
         var error: Unmanaged<CFError>?
 
+        if SecKeyCreateRandomKey(
+            attributes as CFDictionary,
+            &error
+        ) != nil {
 
-        if let privateKey =
-            SecKeyCreateRandomKey(
-                attributes as CFDictionary,
-                &error
-            ) {
-
-            _ = privateKey
-
-            keyStatus =
-            "🔑 Clé sécurisée créée"
+            keyStatus = "🔑 Clé créée"
 
         } else {
 
-            keyStatus =
-            "Erreur création clé"
+            keyStatus = "❌ Erreur création clé"
         }
     }
 }

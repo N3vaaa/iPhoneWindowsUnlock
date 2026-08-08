@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Enumeration;
@@ -16,7 +15,8 @@ internal class Program
         Console.WriteLine("       iPhoneWindowsUnlock");
         Console.WriteLine("=================================");
         Console.WriteLine();
-        Console.WriteLine("Recherche des appareils Bluetooth...");
+
+        Console.WriteLine("Recherche de votre iPhone...");
         Console.WriteLine();
 
         try
@@ -26,31 +26,38 @@ internal class Program
             DeviceInformationCollection devices =
                 await DeviceInformation.FindAllAsync(selector);
 
-            if (devices.Count == 0)
+            DeviceInformation? iPhone = null;
+
+            foreach (DeviceInformation device in devices)
             {
-                Console.WriteLine("❌ Aucun appareil Bluetooth détecté.");
+                if (!string.IsNullOrWhiteSpace(device.Name) &&
+                    device.Name.Contains("iPhone", StringComparison.OrdinalIgnoreCase))
+                {
+                    iPhone = device;
+                    break;
+                }
+            }
+
+            if (iPhone == null)
+            {
+                Console.WriteLine("❌ Aucun iPhone détecté.");
+                Console.WriteLine();
+                Console.WriteLine("Vérifiez que le Bluetooth est activé");
+                Console.WriteLine("sur l'iPhone et sur le PC.");
             }
             else
             {
-                Console.WriteLine($"✅ {devices.Count} appareil(s) Bluetooth trouvé(s) :");
+                Console.WriteLine("✅ iPhone détecté !");
                 Console.WriteLine();
-
-                foreach (DeviceInformation device in devices)
-                {
-                    Console.WriteLine($"• {device.Name}");
-
-                    if (!string.IsNullOrWhiteSpace(device.Id))
-                    {
-                        Console.WriteLine($"  ID : {device.Id}");
-                    }
-
-                    Console.WriteLine();
-                }
+                Console.WriteLine($"Nom : {iPhone.Name}");
+                Console.WriteLine($"ID  : {iPhone.Id}");
+                Console.WriteLine();
+                Console.WriteLine("📱 L'iPhone est visible par Windows.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("❌ Erreur pendant la recherche Bluetooth.");
+            Console.WriteLine("❌ Erreur pendant la recherche.");
             Console.WriteLine();
             Console.WriteLine(ex.Message);
         }

@@ -109,10 +109,21 @@ jobs:
 
       - name: Vérifier IPA
         run: |
-          unzip -t iPhoneWindowsUnlock.ipa
+          echo "Vérification de l'IPA..."
 
-          unzip -l iPhoneWindowsUnlock.ipa | grep \
+          test -f iPhoneWindowsUnlock.ipa
+
+          echo "Taille de l'IPA :"
+          ls -lh iPhoneWindowsUnlock.ipa
+
+          echo "Contenu de l'IPA :"
+          unzip -l iPhoneWindowsUnlock.ipa
+
+          echo "Vérification de Info.plist..."
+          unzip -l iPhoneWindowsUnlock.ipa | grep -F \
             "Payload/iPhoneWindowsUnlock.app/Info.plist"
+
+          echo "Vérification terminée avec succès."
 
       - name: Publier IPA
         uses: actions/upload-artifact@v4

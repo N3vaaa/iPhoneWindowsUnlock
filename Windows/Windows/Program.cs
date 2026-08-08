@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
@@ -52,7 +53,7 @@ internal class Program
             }
 
             Console.WriteLine(
-                $"✅ {iphone.Name} détecté");
+                $"✅ Trouvé : {iphone.Name}");
 
             using BluetoothDevice? bt =
                 await BluetoothDevice.FromIdAsync(
@@ -61,18 +62,18 @@ internal class Program
             if (bt == null)
             {
                 Console.WriteLine(
-                    "❌ Bluetooth impossible");
+                    "❌ Bluetooth indisponible");
                 Pause();
                 return;
             }
 
-            var services =
+            var result =
                 await bt.GetRfcommServicesAsync(
                     BluetoothCacheMode.Uncached);
 
             RfcommDeviceService? iap = null;
 
-            foreach (var service in services.Services)
+            foreach (var service in result.Services)
             {
                 string uuid =
                     service.ServiceId
@@ -93,7 +94,7 @@ internal class Program
             if (iap == null)
             {
                 Console.WriteLine(
-                    "❌ Service iAP absent");
+                    "❌ Wireless iAP absent");
                 Pause();
                 return;
             }
@@ -111,60 +112,86 @@ internal class Program
                 SocketProtectionLevel
                     .BluetoothEncryptionWithAuthentication);
 
-            Console.WriteLine();
             Console.WriteLine(
-                "🟢 Canal RFCOMM ouvert");
+                "🟢 Canal ouvert");
 
             Console.WriteLine();
             Console.WriteLine(
-                "État du canal :");
+                "Surveillance du canal...");
             Console.WriteLine(
-                "- Lecture : disponible");
-            Console.WriteLine(
-                "- Écriture : disponible");
-            Console.WriteLine(
-                "- Protection : Bluetooth authentifié");
-
+                "Durée : 60 secondes");
             Console.WriteLine();
 
-            Console.WriteLine(
-                "Surveillance pendant 30 secondes...");
+            using Stream input =
+                socket.InputStream.AsStreamForRead();
 
-            Console.WriteLine(
-                "Aucune donnée envoyée.");
+            byte[] buffer = new byte[512];
 
-            Console.WriteLine();
-
-            using CancellationTokenSource cts =
+            using CancellationTokenSource cancel =
                 new CancellationTokenSource(
-                    TimeSpan.FromSeconds(30));
+                    TimeSpan.FromSeconds(60));
 
-            while (!cts.IsCancellationRequested)
+            try
             {
-                await Task.Delay(
-                    1000,
-                    cts.Token);
+                while (!cancel.IsCancellationRequested)
+                {
+                    if (socket.Information == null)
+                    {
+                        Console.WriteLine(
+                            "⚠️ Socket fermé");
+                        break;
+                    }
 
-                Console.Write(".");
+                    Console.Write(".");
+                    
+                    await Task.Delay(1000);
+
+                    if (input.CanRead &&
+                        input.Length > 0)
+                    {
+                        int size =
+                            await input.ReadAsync(
+                                buffer,
+                                0,
+                                buffer.Length);
+
+                        Console.WriteLine();
+
+                        Console.WriteLine(
+                            $"📥 {size} octet(s) reçu(s)");
+
+                        for (int i = 0; i < size; i++)
+                        {
+                            Console.Write(
+                                $"{buffer[i]:X2} ");
+                        }
+
+                        Console.WriteLine();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine();
+                Console.WriteLine(
+                    "⚠️ Lecture interrompue");
+                Console.WriteLine(
+                    ex.Message);
             }
 
             Console.WriteLine();
-
-            Console.WriteLine();
             Console.WriteLine(
-                "🟢 Canal toujours stable après 30 secondes.");
+                "Fin de surveillance.");
         }
         catch (Exception ex)
         {
             Console.WriteLine();
             Console.WriteLine(
                 "🔴 ERREUR");
-
             Console.WriteLine(
                 $"Type : {ex.GetType().Name}");
-
             Console.WriteLine(
-                $"Message : {ex.Message}");
+                ex.Message);
         }
 
         Pause();

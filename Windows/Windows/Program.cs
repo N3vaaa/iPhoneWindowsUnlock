@@ -75,46 +75,59 @@ internal class Program
 
                     Console.WriteLine();
                     Console.WriteLine(
-                        "Recherche des services Bluetooth..."
+                        "Recherche des services RFCOMM..."
                     );
 
-                    try
-                    {
-                        var services =
-                            await bluetoothDevice
-                                .GetRfcommServicesAsync();
+                    var result =
+                        await bluetoothDevice.GetRfcommServicesAsync();
 
-                        Console.WriteLine();
+                    Console.WriteLine();
+
+                    if (result.Services.Count == 0)
+                    {
                         Console.WriteLine(
-                            $"Services RFCOMM trouvés : {services.Services.Count}"
+                            "❌ Aucun service RFCOMM trouvé."
+                        );
+                    }
+                    else
+                    {
+                        Console.WriteLine(
+                            $"✅ {result.Services.Count} services RFCOMM trouvés :"
                         );
 
-                        if (services.Services.Count == 0)
+                        Console.WriteLine();
+
+                        int number = 1;
+
+                        foreach (var service in result.Services)
                         {
+                            var serviceId = service.ServiceId;
+
                             Console.WriteLine(
-                                "ℹ️ Aucun service RFCOMM exposé."
+                                $"--- Service {number} ---"
                             );
-                        }
-                        else
-                        {
-                            foreach (var service in services.Services)
+
+                            Console.WriteLine(
+                                $"ID : {serviceId.AsString()}"
+                            );
+
+                            try
                             {
-                                Console.WriteLine();
                                 Console.WriteLine(
-                                    $"Service : {service.ServiceId}"
+                                    $"Short ID : 0x{serviceId.AsShortId():X4}"
                                 );
                             }
+                            catch
+                            {
+                                Console.WriteLine(
+                                    "Short ID : non disponible"
+                                );
+                            }
+
+                            Console.WriteLine();
+
+                            number++;
                         }
-                    }
-                    catch (Exception serviceError)
-                    {
-                        Console.WriteLine();
-                        Console.WriteLine(
-                            "⚠️ Les services ne peuvent pas être énumérés."
-                        );
-                        Console.WriteLine(
-                            $"Message : {serviceError.Message}"
-                        );
                     }
                 }
             }

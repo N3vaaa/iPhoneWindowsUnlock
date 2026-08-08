@@ -1,0 +1,52 @@
+name: Build iPhoneWindowsUnlock Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurer les dépendances
+        run: dotnet restore Windows/iPhoneWindowsUnlock.csproj
+
+      - name: Compiler
+        run: >
+          dotnet build
+          Windows/iPhoneWindowsUnlock.csproj
+          --configuration Release
+          --no-restore
+
+      - name: Publier
+        run: >
+          dotnet publish
+          Windows/iPhoneWindowsUnlock.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output Windows/publish
+
+      - name: Vérifier le programme
+        run: |
+          if (!(Test-Path "Windows/publish/iPhoneWindowsUnlock.exe")) {
+            Write-Error "Programme Windows introuvable."
+            exit 1
+          }
+
+          Write-Host "Programme Windows créé avec succès."
+          Get-ChildItem Windows/publish
+
+      - name: Publier le programme
+        uses: actions/upload-artifact@v4
+        with:
+          name: iPhoneWindowsUnlock-Windows
+          path: Windows/publish

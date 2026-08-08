@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Enumeration;
+using Windows.Devices.Bluetooth.Rfcomm;
 
 namespace iPhoneWindowsUnlock;
 
@@ -92,29 +93,28 @@ internal class Program
                     else
                     {
                         Console.WriteLine(
-                            $"✅ {result.Services.Count} services RFCOMM trouvés :"
+                            $"✅ {result.Services.Count} services RFCOMM trouvés."
                         );
 
                         Console.WriteLine();
 
                         int number = 1;
 
-                        foreach (var service in result.Services)
+                        foreach (RfcommDeviceService service
+                                 in result.Services)
                         {
-                            var serviceId = service.ServiceId;
-
                             Console.WriteLine(
-                                $"--- Service {number} ---"
+                                $"========== SERVICE {number} =========="
                             );
 
                             Console.WriteLine(
-                                $"ID : {serviceId.AsString()}"
+                                $"UUID : {service.ServiceId.AsString()}"
                             );
 
                             try
                             {
                                 Console.WriteLine(
-                                    $"Short ID : 0x{serviceId.AsShortId():X4}"
+                                    $"Short ID : 0x{service.ServiceId.AsShortId():X4}"
                                 );
                             }
                             catch
@@ -124,7 +124,25 @@ internal class Program
                                 );
                             }
 
+                            Console.WriteLine(
+                                $"Nom de connexion : {service.ConnectionServiceName}"
+                            );
+
+                            Console.WriteLine(
+                                $"Hôte : {service.ConnectionHostName}"
+                            );
+
+                            Console.WriteLine(
+                                $"Protection max : {service.MaxProtectionLevel}"
+                            );
+
+                            Console.WriteLine(
+                                $"Protection actuelle : {service.ProtectionLevel}"
+                            );
+
                             Console.WriteLine();
+
+                            service.Dispose();
 
                             number++;
                         }
@@ -136,6 +154,7 @@ internal class Program
         {
             Console.WriteLine();
             Console.WriteLine("❌ Erreur Bluetooth.");
+            Console.WriteLine();
             Console.WriteLine($"Type : {ex.GetType().Name}");
             Console.WriteLine($"Message : {ex.Message}");
         }

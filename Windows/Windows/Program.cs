@@ -31,7 +31,9 @@ internal class Program
             foreach (DeviceInformation device in devices)
             {
                 if (!string.IsNullOrWhiteSpace(device.Name) &&
-                    device.Name.Contains("iPhone", StringComparison.OrdinalIgnoreCase))
+                    device.Name.Contains(
+                        "iPhone",
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     iPhone = device;
                     break;
@@ -41,9 +43,6 @@ internal class Program
             if (iPhone == null)
             {
                 Console.WriteLine("❌ Aucun iPhone détecté.");
-                Console.WriteLine();
-                Console.WriteLine("Vérifiez que l'iPhone est allumé");
-                Console.WriteLine("et que le Bluetooth est activé.");
             }
             else
             {
@@ -53,39 +52,77 @@ internal class Program
                 Console.WriteLine($"ID  : {iPhone.Id}");
                 Console.WriteLine();
 
-                Console.WriteLine("Tentative d'ouverture du périphérique Bluetooth...");
+                Console.WriteLine(
+                    "Ouverture du périphérique Bluetooth..."
+                );
 
-                BluetoothDevice? bluetoothDevice =
+                using BluetoothDevice? bluetoothDevice =
                     await BluetoothDevice.FromIdAsync(iPhone.Id);
 
                 if (bluetoothDevice == null)
                 {
                     Console.WriteLine();
-                    Console.WriteLine("⚠️ Windows a trouvé l'iPhone,");
-                    Console.WriteLine("mais ne peut pas ouvrir son périphérique Bluetooth.");
+                    Console.WriteLine(
+                        "❌ Impossible d'ouvrir le périphérique."
+                    );
                 }
                 else
                 {
                     Console.WriteLine();
-                    Console.WriteLine("✅ Périphérique Bluetooth ouvert !");
-                    Console.WriteLine();
-                    Console.WriteLine($"Nom : {bluetoothDevice.Name}");
                     Console.WriteLine(
-                        $"Adresse Bluetooth : 0x{bluetoothDevice.BluetoothAddress:X}"
+                        "✅ Périphérique Bluetooth ouvert !"
                     );
-                    Console.WriteLine();
-                    Console.WriteLine("📱 Windows peut maintenant accéder");
-                    Console.WriteLine("au périphérique Bluetooth de l'iPhone.");
 
-                    bluetoothDevice.Dispose();
+                    Console.WriteLine();
+                    Console.WriteLine(
+                        "Recherche des services Bluetooth..."
+                    );
+
+                    try
+                    {
+                        var services =
+                            await bluetoothDevice
+                                .GetRfcommServicesAsync();
+
+                        Console.WriteLine();
+                        Console.WriteLine(
+                            $"Services RFCOMM trouvés : {services.Services.Count}"
+                        );
+
+                        if (services.Services.Count == 0)
+                        {
+                            Console.WriteLine(
+                                "ℹ️ Aucun service RFCOMM exposé."
+                            );
+                        }
+                        else
+                        {
+                            foreach (var service in services.Services)
+                            {
+                                Console.WriteLine();
+                                Console.WriteLine(
+                                    $"Service : {service.ServiceId}"
+                                );
+                            }
+                        }
+                    }
+                    catch (Exception serviceError)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine(
+                            "⚠️ Les services ne peuvent pas être énumérés."
+                        );
+                        Console.WriteLine(
+                            $"Message : {serviceError.Message}"
+                        );
+                    }
                 }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine();
-            Console.WriteLine("❌ Erreur pendant la communication Bluetooth.");
-            Console.WriteLine();
+            Console.WriteLine("❌ Erreur Bluetooth.");
             Console.WriteLine($"Type : {ex.GetType().Name}");
             Console.WriteLine($"Message : {ex.Message}");
         }

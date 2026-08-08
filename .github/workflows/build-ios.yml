@@ -2,10 +2,6 @@ name: Build iPhoneWindowsUnlock iOS
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "iOS/**"
-      - ".github/workflows/build-ios.yml"
 
 jobs:
   build:
@@ -13,7 +9,7 @@ jobs:
 
     steps:
 
-      - name: Récupérer le dépôt
+      - name: Checkout
         uses: actions/checkout@v4
 
 
@@ -21,15 +17,15 @@ jobs:
         run: brew install xcodegen
 
 
-      - name: Préparer les fichiers
+      - name: Préparer Swift
         run: |
           mkdir App
           cp iOS/iPhoneWindowsUnlockApp.swift App/
 
 
-      - name: Créer projet Xcode
+      - name: Créer configuration Xcode
         run: |
-          cat > project.yml <<EOF
+          cat > project.yml <<'EOF'
 name: iPhoneWindowsUnlock
 
 options:
@@ -40,10 +36,8 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
-
     sources:
       - App
-
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
@@ -51,11 +45,11 @@ targets:
 EOF
 
 
-      - name: Générer Xcode
+      - name: Générer projet
         run: xcodegen generate
 
 
-      - name: Compiler
+      - name: Compiler iOS
         run: |
           xcodebuild \
           -project iPhoneWindowsUnlock.xcodeproj \
@@ -68,11 +62,8 @@ EOF
 
       - name: Créer IPA
         run: |
-          mkdir Payload
-          cp -r \
-          build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app \
-          Payload/
-
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app Payload/
           zip -r iPhoneWindowsUnlock.ipa Payload
 
 

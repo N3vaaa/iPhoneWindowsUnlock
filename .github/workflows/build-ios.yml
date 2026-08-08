@@ -19,58 +19,6 @@ jobs:
           mkdir -p App
           cp iOS/iPhoneWindowsUnlockApp.swift App/iPhoneWindowsUnlockApp.swift
 
-      - name: Créer Info.plist
-        run: |
-          cat > Info.plist <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleDevelopmentRegion</key>
-              <string>en</string>
-
-              <key>CFBundleDisplayName</key>
-              <string>iPhone Windows Unlock</string>
-
-              <key>CFBundleExecutable</key>
-              <string>iPhoneWindowsUnlock</string>
-
-              <key>CFBundleIdentifier</key>
-              <string>com.n3vaaa.iPhoneWindowsUnlock</string>
-
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-
-              <key>CFBundleName</key>
-              <string>iPhoneWindowsUnlock</string>
-
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-
-              <key>CFBundleVersion</key>
-              <string>2</string>
-
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-
-              <key>MinimumOSVersion</key>
-              <string>17.0</string>
-
-              <key>NSFaceIDUsageDescription</key>
-              <string>Face ID est utilisé pour autoriser l'enregistrement sécurisé de cet iPhone.</string>
-
-              <key>UIDeviceFamily</key>
-              <array>
-                  <integer>1</integer>
-                  <integer>2</integer>
-              </array>
-          </dict>
-          </plist>
-          EOF
-
       - name: Créer projet Xcode
         run: |
           cat > project.yml <<'EOF'
@@ -88,15 +36,15 @@ jobs:
               sources:
                 - App
 
-              info:
-                path: Info.plist
-
               settings:
                 PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
                 PRODUCT_NAME: iPhoneWindowsUnlock
-                INFOPLIST_FILE: Info.plist
                 SWIFT_VERSION: "5.0"
                 TARGETED_DEVICE_FAMILY: "1,2"
+                GENERATE_INFOPLIST_FILE: YES
+                INFOPLIST_KEY_CFBundleDisplayName: "iPhone Windows Unlock"
+                INFOPLIST_KEY_LSRequiresIPhoneOS: YES
+                INFOPLIST_KEY_NSFaceIDUsageDescription: "Face ID est utilisé pour autoriser l'enregistrement sécurisé de cet iPhone."
           EOF
 
       - name: Générer Xcode
@@ -127,8 +75,10 @@ jobs:
             exit 1
           fi
 
-          echo "Application trouvée : $APP_PATH"
+          echo "Application trouvée :"
+          echo "$APP_PATH"
 
+          echo "Vérification Info.plist :"
           plutil -lint "$APP_PATH/Info.plist"
 
           echo "Vérification Face ID :"
@@ -154,6 +104,7 @@ jobs:
 
           cd ..
 
+          echo "IPA créée :"
           ls -lh iPhoneWindowsUnlock.ipa
 
       - name: Vérifier IPA

@@ -2,10 +2,8 @@ import SwiftUI
 import LocalAuthentication
 import Security
 
-
 @main
 struct iPhoneWindowsUnlockApp: App {
-
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -13,208 +11,155 @@ struct iPhoneWindowsUnlockApp: App {
     }
 }
 
-
-
 struct ContentView: View {
-
     @State private var status = "Vérification..."
     @State private var keyStatus = ""
 
+    private let keyTag = "com.n3vaaa.iPhoneWindowsUnlock.key"
+
     var body: some View {
-
         VStack(spacing: 25) {
-
             Text("iPhone Windows Unlock")
                 .font(.title)
                 .bold()
 
-
             Text(status)
                 .font(.headline)
-
+                .multilineTextAlignment(.center)
 
             Text(keyStatus)
                 .foregroundColor(.secondary)
-
+                .multilineTextAlignment(.center)
 
             Button {
-
                 authenticate()
-
             } label: {
-
                 Text("🔐 Enregistrer cet iPhone")
                     .padding()
             }
             .buttonStyle(.borderedProminent)
-
         }
         .padding()
         .onAppear {
-
             checkKey()
-
         }
     }
 
-
-
-    // Vérifie si l'iPhone possède déjà une identité
-
-    func checkKey() {
-
-        let tag =
-        "com.n3vaaa.iPhoneWindowsUnlock.key"
-
+    // Vérifie si une identité cryptographique existe déjà
+    private func checkKey() {
+        guard let tagData = keyTag.data(using: .utf8) else {
+            status = "❌ Erreur interne"
+            return
+        }
 
         let query: [String: Any] = [
-
-            kSecClass as String:
-                kSecClassKey,
-
-            kSecAttrApplicationTag as String:
-                tag.data(using: .utf8)!,
-
-            kSecReturnRef as String:
-                true
+            kSecClass as String: kSecClassKey,
+            kSecAttrApplicationTag as String: tagData,
+            kSecReturnRef as String: true
         ]
-
 
         var result: AnyObject?
 
-
-        let status =
-        SecItemCopyMatching(
+        let resultCode = SecItemCopyMatching(
             query as CFDictionary,
             &result
         )
 
-
-        if status == errSecSuccess {
-
-            self.status =
-            "✅ iPhone déjà enregistré"
-
-            self.keyStatus =
-            "Clé sécurisée disponible"
-
-        } else {
-
-            self.status =
-            "Aucune identité trouvée"
-
-        }
-    }
-
-
-
-    // Validation Face ID
-
-    func authenticate() {
-
-
-        let context = LAContext()
-
-
-        context.evaluatePolicy(
-
-            .deviceOwnerAuthenticationWithBiometrics,
-
-            localizedReason:
-                "Autoriser l'enregistrement de cet iPhone"
-
-        ) { success, error in
-
-
-            DispatchQueue.main.async {
-
-
-                if success {
-
-
-                    createKey()
-
-
-                } else {
-
-
-                    status =
-                    "❌ Face ID refusé"
-
-                }
-
+        DispatchQueue.main.async {
+            if resultCode == errSecSuccess {
+                status = "✅ iPhone déjà enregistré"
+                keyStatus = "Clé sécurisée disponible"
+            } else {
+                status = "Aucune identité trouvée"
+                keyStatus = ""
             }
         }
     }
 
+    // Demande l'authentification Face ID
+    private func authenticate() {
+        let context = LAContext()
+        var authError: NSError?
 
+        guard context.canEvaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            error: &authError
+        ) else {
+            DispatchQueue.main.async {
+                status = "❌ Face ID indisponible"
+                keyStatus = authError?.localizedDescription ?? "Authentification biométrique indisponible"
+            }
+            return
+        }
 
+        context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: "Autoriser l'enregistrement de cet iPhone"
+        ) { success, error in
 
-    // Création de l'identité
+            DispatchQueue.main.async {
+                if success {
+                    createKey()
+                } else {
+                    status = "❌ Face ID refusé"
+                    keyStatus = error?.localizedDescription ?? ""
+                }
+            }
+        }
+    }
 
-    func createKey() {
+    // Création de la clé cryptographique
+    private func createKey() {
+        guard let tagData = keyTag.data(using: .utf8) else {
+            status = "❌ Erreur interne"
+            return
+        }
 
+        // Vérifie d'abord si la clé existe déjà.
+        let existingQuery: [String: Any] = [
+            kSecClass as String: kSecClassKey,
+            kSecAttrApplicationTag as String: tagData,
+            kSecReturnRef as String: true
+        ]
 
-        let tag =
-        "com.n3vaaa.iPhoneWindowsUnlock.key"
+        var existingKey: AnyObject?
 
+        let existingStatus = SecItemCopyMatching(
+            existingQuery as CFDictionary,
+            &existingKey
+        )
+
+        if existingStatus == errSecSuccess {
+            status = "✅ iPhone déjà enregistré"
+            keyStatus = "Identité cryptographique disponible"
+            return
+        }
 
         let attributes: [String: Any] = [
-
-
-            kSecAttrKeyType as String:
-                kSecAttrKeyTypeECSECPrimeRandom,
-
-
-            kSecAttrKeySizeInBits as String:
-                256,
-
-
+            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrKeySizeInBits as String: 256,
             kSecPrivateKeyAttrs as String: [
-
-
-                kSecAttrIsPermanent as String:
-                    true,
-
-
-                kSecAttrApplicationTag as String:
-                    tag.data(using: .utf8)!
-
+                kSecAttrIsPermanent as String: true,
+                kSecAttrApplicationTag as String: tagData
             ]
         ]
 
+        var keyError: Unmanaged<CFError>?
 
-
-        var error:
-        Unmanaged<CFError>?
-
-
-
-        if SecKeyCreateRandomKey(
-
+        let privateKey = SecKeyCreateRandomKey(
             attributes as CFDictionary,
+            &keyError
+        )
 
-            &error
-
-        ) != nil {
-
-
-
-            status =
-            "✅ iPhone enregistré"
-
-
-            keyStatus =
-            "Identité cryptographique créée"
-
-
-
+        if privateKey != nil {
+            status = "✅ iPhone enregistré"
+            keyStatus = "Identité cryptographique créée"
         } else {
+            status = "❌ Erreur création clé"
 
-
-            status =
-            "❌ Erreur création clé"
-
+            if let keyError {
+                keyStatus = (keyError.takeRetainedValue() as Error).localizedDescription
+            }
         }
     }
 }

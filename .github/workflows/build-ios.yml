@@ -60,3 +60,10 @@ jobs:
             -scheme iPhoneWindowsUnlock \
             -sdk iphonesimulator \
             build
+
+      - name: Sauvegarder le résultat
+        uses: actions/upload-artifact@v4
+        with:
+          name: iPhoneWindowsUnlock-build
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/

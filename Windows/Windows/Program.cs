@@ -16,16 +16,17 @@ internal class Program
 
     static async Task Main()
     {
-        Console.Title = "iPhoneWindowsUnlock";
+        Console.Title = "iPhoneWindowsUnlock - iAP Diagnostic";
 
-        Console.WriteLine("==============================");
-        Console.WriteLine("     iPhoneWindowsUnlock");
-        Console.WriteLine("==============================");
+        Console.WriteLine("======================================");
+        Console.WriteLine("     iPhoneWindowsUnlock - iAP");
+        Console.WriteLine("======================================");
         Console.WriteLine();
 
         try
         {
-            Console.WriteLine("Recherche iPhone...");
+            // 1. Recherche de l'iPhone
+            Console.WriteLine("Recherche de l'iPhone...");
 
             var devices =
                 await DeviceInformation.FindAllAsync(
@@ -33,52 +34,61 @@ internal class Program
 
             DeviceInformation? iphone = null;
 
-            foreach (var d in devices)
+            foreach (var device in devices)
             {
-                if (d.Name.Contains(
-                    "iPhone",
-                    StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(device.Name) &&
+                    device.Name.Contains(
+                        "iPhone",
+                        StringComparison.OrdinalIgnoreCase))
                 {
-                    iphone = d;
+                    iphone = device;
                     break;
                 }
             }
 
             if (iphone == null)
             {
+                Console.WriteLine("🔴 iPhone introuvable.");
+                Pause();
+                return;
+            }
+
+            Console.WriteLine($"🟢 iPhone : {iphone.Name}");
+            Console.WriteLine();
+
+            // 2. Ouverture Bluetooth
+            using BluetoothDevice? bluetooth =
+                await BluetoothDevice.FromIdAsync(
+                    iphone.Id);
+
+            if (bluetooth == null)
+            {
                 Console.WriteLine(
-                    "❌ iPhone introuvable");
+                    "🔴 Impossible d'ouvrir Bluetooth.");
                 Pause();
                 return;
             }
 
             Console.WriteLine(
-                $"✅ Trouvé : {iphone.Name}");
+                "🟢 Périphérique Bluetooth ouvert.");
+            Console.WriteLine();
 
-            using BluetoothDevice? bt =
-                await BluetoothDevice.FromIdAsync(
-                    iphone.Id);
+            // 3. Recherche du service iAP
+            Console.WriteLine(
+                "Recherche du service Wireless iAP...");
 
-            if (bt == null)
-            {
-                Console.WriteLine(
-                    "❌ Bluetooth indisponible");
-                Pause();
-                return;
-            }
-
-            var result =
-                await bt.GetRfcommServicesAsync(
+            var services =
+                await bluetooth.GetRfcommServicesAsync(
                     BluetoothCacheMode.Uncached);
 
             RfcommDeviceService? iap = null;
 
-            foreach (var service in result.Services)
+            foreach (var service in services.Services)
             {
                 string uuid =
                     service.ServiceId
-                    .AsString()
-                    .Trim('{', '}');
+                        .AsString()
+                        .Trim('{', '}');
 
                 if (uuid.Equals(
                     IapUuid,
@@ -94,14 +104,29 @@ internal class Program
             if (iap == null)
             {
                 Console.WriteLine(
-                    "❌ Wireless iAP absent");
+                    "🔴 Service Wireless iAP introuvable.");
                 Pause();
                 return;
             }
 
-            Console.WriteLine();
             Console.WriteLine(
-                "Connexion Wireless iAP...");
+                "🟢 Service Wireless iAP trouvé.");
+            Console.WriteLine();
+
+            Console.WriteLine(
+                $"UUID : {iap.ServiceId.AsString()}");
+
+            Console.WriteLine(
+                $"Hôte : {iap.ConnectionHostName}");
+
+            Console.WriteLine(
+                $"Protection : {iap.ProtectionLevel}");
+
+            Console.WriteLine();
+
+            // 4. Connexion
+            Console.WriteLine(
+                "Connexion au canal RFCOMM...");
 
             using StreamSocket socket =
                 new StreamSocket();
@@ -112,96 +137,116 @@ internal class Program
                 SocketProtectionLevel
                     .BluetoothEncryptionWithAuthentication);
 
-            Console.WriteLine(
-                "🟢 Canal ouvert");
-
             Console.WriteLine();
             Console.WriteLine(
-                "Surveillance du canal...");
-            Console.WriteLine(
-                "Durée : 60 secondes");
+                "🟢 CONNEXION iAP ÉTABLIE !");
             Console.WriteLine();
 
+            // 5. Diagnostic du flux
             using Stream input =
                 socket.InputStream.AsStreamForRead();
 
-            byte[] buffer = new byte[512];
+            Console.WriteLine(
+                "Écoute du flux iAP...");
+            Console.WriteLine(
+                "Aucune donnée n'est envoyée.");
+            Console.WriteLine();
 
-            using CancellationTokenSource cancel =
+            byte[] buffer = new byte[4096];
+
+            using CancellationTokenSource timeout =
                 new CancellationTokenSource(
-                    TimeSpan.FromSeconds(60));
+                    TimeSpan.FromSeconds(20));
+
+            int totalReceived = 0;
 
             try
             {
-                while (!cancel.IsCancellationRequested)
+                while (!timeout.IsCancellationRequested)
                 {
-                    if (socket.Information == null)
+                    int count =
+                        await input.ReadAsync(
+                            buffer,
+                            0,
+                            buffer.Length,
+                            timeout.Token);
+
+                    if (count == 0)
                     {
+                        Console.WriteLine();
                         Console.WriteLine(
-                            "⚠️ Socket fermé");
+                            "⚠️ Le périphérique a fermé le flux.");
                         break;
                     }
 
-                    Console.Write(".");
-                    
-                    await Task.Delay(1000);
+                    totalReceived += count;
 
-                    if (input.CanRead &&
-                        input.Length > 0)
-                    {
-                        int size =
-                            await input.ReadAsync(
-                                buffer,
-                                0,
-                                buffer.Length);
+                    Console.WriteLine(
+                        $"📥 {count} octet(s) reçu(s)");
 
-                        Console.WriteLine();
+                    PrintHex(buffer, count);
 
-                        Console.WriteLine(
-                            $"📥 {size} octet(s) reçu(s)");
-
-                        for (int i = 0; i < size; i++)
-                        {
-                            Console.Write(
-                                $"{buffer[i]:X2} ");
-                        }
-
-                        Console.WriteLine();
-                    }
+                    Console.WriteLine();
                 }
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
                 Console.WriteLine();
                 Console.WriteLine(
-                    "⚠️ Lecture interrompue");
-                Console.WriteLine(
-                    ex.Message);
+                    "ℹ️ Fin du délai d'écoute.");
             }
 
             Console.WriteLine();
             Console.WriteLine(
-                "Fin de surveillance.");
+                "======================================");
+
+            Console.WriteLine(
+                $"Total reçu : {totalReceived} octet(s)");
+
+            Console.WriteLine(
+                "======================================");
         }
         catch (Exception ex)
         {
             Console.WriteLine();
             Console.WriteLine(
                 "🔴 ERREUR");
+
             Console.WriteLine(
-                $"Type : {ex.GetType().Name}");
+                $"Type    : {ex.GetType().Name}");
+
             Console.WriteLine(
-                ex.Message);
+                $"Message : {ex.Message}");
+
+            Console.WriteLine(
+                $"HRESULT : 0x{ex.HResult:X8}");
         }
 
         Pause();
     }
 
-    static void Pause()
+    private static void PrintHex(
+        byte[] buffer,
+        int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            Console.Write(
+                $"{buffer[i]:X2} ");
+
+            if ((i + 1) % 16 == 0)
+                Console.WriteLine();
+        }
+
+        Console.WriteLine();
+    }
+
+    private static void Pause()
     {
         Console.WriteLine();
         Console.WriteLine(
             "Appuyez sur une touche pour quitter...");
+
         Console.ReadKey();
     }
 }

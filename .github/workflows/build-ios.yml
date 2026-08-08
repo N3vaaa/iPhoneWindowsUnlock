@@ -27,18 +27,14 @@ jobs:
         run: |
           cat > Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>CFBundleName</key>
               <string>iPhoneWindowsUnlock</string>
-
               <key>CFBundleIdentifier</key>
               <string>com.n3vaaa.iPhoneWindowsUnlock</string>
-
               <key>CFBundleVersion</key>
               <string>1</string>
-
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
           </dict>
@@ -73,6 +69,7 @@ jobs:
           -scheme iPhoneWindowsUnlock \
           -sdk iphoneos \
           -configuration Release \
+          -derivedDataPath Build \
           build \
           CODE_SIGNING_ALLOWED=NO
 
@@ -81,11 +78,9 @@ jobs:
         run: |
           mkdir -p Payload
 
-          APP=$(find . -name "iPhoneWindowsUnlock.app" | head -n 1)
-
-          echo "Application trouvée : $APP"
-
-          cp -R "$APP" Payload/
+          cp -R \
+          Build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app \
+          Payload/
 
           zip -r iPhoneWindowsUnlock.ipa Payload
 

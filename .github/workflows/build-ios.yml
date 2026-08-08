@@ -8,82 +8,160 @@ jobs:
     runs-on: macos-latest
 
     steps:
-
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
-
 
       - name: Installer XcodeGen
         run: brew install xcodegen
 
-
-      - name: Préparer Swift
+      - name: Préparer les fichiers
         run: |
-          mkdir App
+          mkdir -p App
           cp iOS/iPhoneWindowsUnlockApp.swift App/iPhoneWindowsUnlockApp.swift
-
 
       - name: Créer Info.plist
         run: |
-          cat > Info.plist <<EOF
+          cat > Info.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-              <key>CFBundleName</key>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+
+              <key>CFBundleDisplayName</key>
+              <string>iPhone Windows Unlock</string>
+
+              <key>CFBundleExecutable</key>
               <string>iPhoneWindowsUnlock</string>
+
               <key>CFBundleIdentifier</key>
               <string>com.n3vaaa.iPhoneWindowsUnlock</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
+
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+
+              <key>CFBundleName</key>
+              <string>iPhoneWindowsUnlock</string>
+
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
+
+              <key>CFBundleVersion</key>
+              <string>2</string>
+
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+
+              <key>MinimumOSVersion</key>
+              <string>17.0</string>
+
+              <key>NSFaceIDUsageDescription</key>
+              <string>Face ID est utilisé pour autoriser l'enregistrement sécurisé de cet iPhone.</string>
+
+              <key>UIDeviceFamily</key>
+              <array>
+                  <integer>1</integer>
+                  <integer>2</integer>
+              </array>
           </dict>
           </plist>
           EOF
 
-
       - name: Créer projet Xcode
         run: |
-          printf "name: iPhoneWindowsUnlock\n" > project.yml
-          printf "options:\n" >> project.yml
-          printf "  bundleIdPrefix: com.n3vaaa\n" >> project.yml
-          printf "targets:\n" >> project.yml
-          printf "  iPhoneWindowsUnlock:\n" >> project.yml
-          printf "    type: application\n" >> project.yml
-          printf "    platform: iOS\n" >> project.yml
-          printf "    deploymentTarget: '17.0'\n" >> project.yml
-          printf "    sources:\n" >> project.yml
-          printf "      - App\n" >> project.yml
-          printf "    info:\n" >> project.yml
-          printf "      path: Info.plist\n" >> project.yml
+          cat > project.yml <<'EOF'
+          name: iPhoneWindowsUnlock
 
+          options:
+            bundleIdPrefix: com.n3vaaa
+
+          targets:
+            iPhoneWindowsUnlock:
+              type: application
+              platform: iOS
+              deploymentTarget: "17.0"
+
+              sources:
+                - App
+
+              info:
+                path: Info.plist
+
+              settings:
+                PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
+                PRODUCT_NAME: iPhoneWindowsUnlock
+                INFOPLIST_FILE: Info.plist
+                SWIFT_VERSION: "5.0"
+                TARGETED_DEVICE_FAMILY: "1,2"
+          EOF
 
       - name: Générer Xcode
-        run: xcodegen generate
-
+        run: |
+          xcodegen generate
 
       - name: Compiler application
         run: |
-          xcodebuild \
-          -project iPhoneWindowsUnlock.xcodeproj \
-          -scheme iPhoneWindowsUnlock \
-          -sdk iphoneos \
-          -configuration Release \
-          -derivedDataPath Build \
-          build \
-          CODE_SIGNING_ALLOWED=NO
+          rm -rf Build
 
+          xcodebuild \
+            -project iPhoneWindowsUnlock.xcodeproj \
+            -scheme iPhoneWindowsUnlock \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath Build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Vérifier application
+        run: |
+          APP_PATH="Build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERREUR : application introuvable"
+            find Build -name "*.app" -print
+            exit 1
+          fi
+
+          echo "Application trouvée : $APP_PATH"
+
+          plutil -lint "$APP_PATH/Info.plist"
+
+          echo "Vérification Face ID :"
+          /usr/libexec/PlistBuddy \
+            -c "Print :NSFaceIDUsageDescription" \
+            "$APP_PATH/Info.plist"
 
       - name: Créer IPA
         run: |
-          mkdir -p Payload
+          rm -rf Payload
+          rm -f iPhoneWindowsUnlock.ipa
+
+          mkdir Payload
 
           cp -R \
-          Build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app \
-          Payload/
+            "Build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app" \
+            "Payload/iPhoneWindowsUnlock.app"
 
-          zip -r iPhoneWindowsUnlock.ipa Payload
+          cd Payload
 
+          zip -r -9 ../iPhoneWindowsUnlock.ipa \
+            iPhoneWindowsUnlock.app
+
+          cd ..
+
+          ls -lh iPhoneWindowsUnlock.ipa
+
+      - name: Vérifier IPA
+        run: |
+          unzip -t iPhoneWindowsUnlock.ipa
+
+          unzip -l iPhoneWindowsUnlock.ipa | grep \
+            "Payload/iPhoneWindowsUnlock.app/Info.plist"
 
       - name: Publier IPA
         uses: actions/upload-artifact@v4

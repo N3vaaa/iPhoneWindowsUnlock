@@ -15,18 +15,48 @@ jobs:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
-      - name: Vérifier Xcode
-        run: xcodebuild -version
+      - name: Installer XcodeGen
+        run: brew install xcodegen
 
-      - name: Créer le projet Xcode
+      - name: Préparer le projet iOS
         run: |
-          mkdir -p Build
+          mkdir -p App
+          cp iOS/iPhoneWindowsUnlockApp.swift App/
 
-          cat > Build/iPhoneWindowsUnlockApp.swift <<'EOF'
-          $(cat iOS/iPhoneWindowsUnlockApp.swift)
+          cat > project.yml <<'EOF'
+          name: iPhoneWindowsUnlock
+
+          options:
+            bundleIdPrefix: com.n3vaaa
+
+          targets:
+            iPhoneWindowsUnlock:
+              type: application
+              platform: iOS
+              deploymentTarget: "17.0"
+
+              sources:
+                - App
+
+              settings:
+                base:
+                  PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
+                  SWIFT_VERSION: 5.0
+
+              info:
+                path: Info.plist
+                properties:
+                  NSBluetoothAlwaysUsageDescription:
+                    "Utilisation du Bluetooth pour communiquer avec le PC Windows."
           EOF
 
-      - name: Afficher les fichiers
+      - name: Générer le projet Xcode
+        run: xcodegen generate
+
+      - name: Compiler l'application
         run: |
-          echo "Projet iOS préparé."
-          find . -maxdepth 3 -type f
+          xcodebuild \
+            -project iPhoneWindowsUnlock.xcodeproj \
+            -scheme iPhoneWindowsUnlock \
+            -sdk iphonesimulator \
+            build

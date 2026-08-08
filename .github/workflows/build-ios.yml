@@ -8,18 +8,22 @@ jobs:
     runs-on: macos-latest
 
     steps:
+
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
+
       - name: Installer XcodeGen
         run: brew install xcodegen
+
 
       - name: Préparer Swift
         run: |
           mkdir App
           cp iOS/iPhoneWindowsUnlockApp.swift App/iPhoneWindowsUnlockApp.swift
 
-      - name: Créer Info plist
+
+      - name: Créer Info.plist
         run: |
           cat > Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -30,11 +34,14 @@ jobs:
               <string>iPhoneWindowsUnlock</string>
               <key>CFBundleIdentifier</key>
               <string>com.n3vaaa.iPhoneWindowsUnlock</string>
-              <key>UILaunchStoryboardName</key>
-              <string></string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
           </dict>
           </plist>
           EOF
+
 
       - name: Créer projet Xcode
         run: |
@@ -51,14 +58,35 @@ jobs:
           printf "    info:\n" >> project.yml
           printf "      path: Info.plist\n" >> project.yml
 
+
       - name: Générer Xcode
         run: xcodegen generate
 
-      - name: Compiler
+
+      - name: Compiler application
         run: |
           xcodebuild \
           -project iPhoneWindowsUnlock.xcodeproj \
           -scheme iPhoneWindowsUnlock \
           -sdk iphoneos \
+          -configuration Release \
           build \
           CODE_SIGNING_ALLOWED=NO
+
+
+      - name: Créer IPA
+        run: |
+          mkdir -p Payload
+
+          cp -R \
+          build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app \
+          Payload/
+
+          zip -r iPhoneWindowsUnlock.ipa Payload
+
+
+      - name: Publier IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: iPhoneWindowsUnlock-ipa
+          path: iPhoneWindowsUnlock.ipa

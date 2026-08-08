@@ -1,6 +1,5 @@
 name: Build iPhoneWindowsUnlock iOS
 
-
 on:
   workflow_dispatch:
   push:
@@ -8,115 +7,77 @@ on:
       - "iOS/**"
       - ".github/workflows/build-ios.yml"
 
-
 jobs:
-
   build:
-
     runs-on: macos-latest
-
 
     steps:
 
-    - name: Récupérer le dépôt
-      uses: actions/checkout@v4
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
 
 
-
-    - name: Installer XcodeGen
-      run: |
-        brew install xcodegen
+      - name: Installer XcodeGen
+        run: brew install xcodegen
 
 
-
-    - name: Préparer le projet iOS
-      run: |
-
-        mkdir -p App
-
-        cp iOS/iPhoneWindowsUnlockApp.swift App/
+      - name: Préparer les fichiers
+        run: |
+          mkdir App
+          cp iOS/iPhoneWindowsUnlockApp.swift App/
 
 
-
-    - name: Créer project.yml Xcode
-      run: |
-
-        cat > project.yml <<EOF
-
+      - name: Créer projet Xcode
+        run: |
+          cat > project.yml <<EOF
 name: iPhoneWindowsUnlock
 
 options:
-
   bundleIdPrefix: com.n3vaaa
 
-
 targets:
-
   iPhoneWindowsUnlock:
-
     type: application
-
     platform: iOS
-
     deploymentTarget: "17.0"
 
-
     sources:
-
       - App
 
-
     settings:
-
       base:
-
         PRODUCT_BUNDLE_IDENTIFIER: com.n3vaaa.iPhoneWindowsUnlock
-
         SWIFT_VERSION: 5.0
-
 EOF
 
 
-
-    - name: Générer projet Xcode
-      run: |
-
-        xcodegen generate
+      - name: Générer Xcode
+        run: xcodegen generate
 
 
-
-    - name: Compiler application
-      run: |
-
-        xcodebuild \
-        -project iPhoneWindowsUnlock.xcodeproj \
-        -scheme iPhoneWindowsUnlock \
-        -sdk iphoneos \
-        -configuration Release \
-        build \
-        CODE_SIGNING_ALLOWED=NO
+      - name: Compiler
+        run: |
+          xcodebuild \
+          -project iPhoneWindowsUnlock.xcodeproj \
+          -scheme iPhoneWindowsUnlock \
+          -sdk iphoneos \
+          -configuration Release \
+          build \
+          CODE_SIGNING_ALLOWED=NO
 
 
+      - name: Créer IPA
+        run: |
+          mkdir Payload
+          cp -r \
+          build/Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app \
+          Payload/
 
-    - name: Créer archive IPA
-      run: |
-
-        mkdir Payload
-
-        cp -r \
-        Build/Products/Release-iphoneos/iPhoneWindowsUnlock.app \
-        Payload/
-
-
-        zip -r iPhoneWindowsUnlock.ipa Payload
+          zip -r iPhoneWindowsUnlock.ipa Payload
 
 
-
-    - name: Sauvegarder IPA
-      uses: actions/upload-artifact@v4
-
-      with:
-
-        name: iPhoneWindowsUnlock-ipa
-
-        path: iPhoneWindowsUnlock.ipa
+      - name: Publier IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: iPhoneWindowsUnlock-ipa
+          path: iPhoneWindowsUnlock.ipa

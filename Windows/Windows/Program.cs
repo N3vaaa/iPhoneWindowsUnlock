@@ -27,7 +27,6 @@ internal class Program
         try
         {
             Console.WriteLine("Recherche de votre iPhone...");
-            Console.WriteLine();
 
             string selector =
                 BluetoothDevice.GetDeviceSelector();
@@ -37,7 +36,7 @@ internal class Program
 
             DeviceInformation? iPhone = null;
 
-            foreach (DeviceInformation device in devices)
+            foreach (var device in devices)
             {
                 if (!string.IsNullOrWhiteSpace(device.Name) &&
                     device.Name.Contains(
@@ -51,156 +50,139 @@ internal class Program
 
             if (iPhone == null)
             {
-                Console.WriteLine("❌ Aucun iPhone détecté.");
-                WaitAndExit();
+                Console.WriteLine("❌ iPhone introuvable");
+                Exit();
                 return;
             }
 
-            Console.WriteLine("✅ iPhone détecté !");
             Console.WriteLine();
-            Console.WriteLine($"Nom : {iPhone.Name}");
-            Console.WriteLine($"ID  : {iPhone.Id}");
-            Console.WriteLine();
+            Console.WriteLine($"✅ {iPhone.Name} trouvé");
 
-            Console.WriteLine(
-                "Ouverture du périphérique Bluetooth..."
-            );
-
-            using BluetoothDevice? bluetoothDevice =
+            using BluetoothDevice? bluetooth =
                 await BluetoothDevice.FromIdAsync(iPhone.Id);
 
-            if (bluetoothDevice == null)
+            if (bluetooth == null)
             {
-                Console.WriteLine(
-                    "❌ Impossible d'ouvrir l'iPhone."
-                );
-
-                WaitAndExit();
+                Console.WriteLine("❌ Bluetooth impossible");
+                Exit();
                 return;
             }
 
-            Console.WriteLine(
-                "✅ Périphérique Bluetooth ouvert !"
-            );
-
-            Console.WriteLine();
-            Console.WriteLine(
-                "Recherche du service Wireless iAP..."
-            );
-
-            var result =
-                await bluetoothDevice.GetRfcommServicesAsync(
+            var services =
+                await bluetooth.GetRfcommServicesAsync(
                     BluetoothCacheMode.Uncached);
 
-            RfcommDeviceService? iapService = null;
+            RfcommDeviceService? iap = null;
 
-            foreach (RfcommDeviceService service in result.Services)
+            foreach (var service in services.Services)
             {
-                string uuid = service.ServiceId
-                    .AsString()
+                string uuid =
+                    service.ServiceId.AsString()
                     .Trim('{', '}');
 
                 if (uuid.Equals(
                     IapServiceUuid,
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    iapService = service;
-                    break;
+                    iap = service;
                 }
-
-                service.Dispose();
+                else
+                {
+                    service.Dispose();
+                }
             }
 
-            if (iapService == null)
+            if (iap == null)
             {
                 Console.WriteLine(
-                    "❌ Service Wireless iAP introuvable."
-                );
-
-                WaitAndExit();
+                    "❌ Service iAP absent");
+                Exit();
                 return;
             }
 
             Console.WriteLine();
             Console.WriteLine(
-                "✅ Service Wireless iAP trouvé."
-            );
-
-            Console.WriteLine();
-            Console.WriteLine(
-                "Ouverture de la connexion RFCOMM..."
+                "Connexion Wireless iAP..."
             );
 
             using StreamSocket socket =
                 new StreamSocket();
 
             await socket.ConnectAsync(
-                iapService.ConnectionHostName,
-                iapService.ConnectionServiceName,
+                iap.ConnectionHostName,
+                iap.ConnectionServiceName,
                 SocketProtectionLevel
                     .BluetoothEncryptionWithAuthentication);
 
-            Console.WriteLine();
             Console.WriteLine(
-                "🟢 CONNEXION RFCOMM RÉUSSIE !"
-            );
-
-            Console.WriteLine();
-            Console.WriteLine(
-                "Écoute de l'iPhone pendant 5 secondes..."
-            );
-
-            Console.WriteLine(
-                "(Aucune donnée ne sera envoyée.)"
+                "🟢 Connexion établie"
             );
 
             Console.WriteLine();
 
-            using Stream input =
+            Stream output =
+                socket.OutputStream.AsStreamForWrite();
+
+            Stream input =
                 socket.InputStream.AsStreamForRead();
 
-            byte[] buffer = new byte[4096];
+            /*
+             * Test neutre :
+             * aucun ordre iPhone,
+             * juste une vérification du canal.
+             */
+            byte[] test =
+            {
+                0x00
+            };
 
-            using CancellationTokenSource timeout =
+            Console.WriteLine(
+                "Envoi test canal..."
+            );
+
+            await output.WriteAsync(
+                test,
+                0,
+                test.Length);
+
+            await output.FlushAsync();
+
+            Console.WriteLine(
+                "Test envoyé."
+            );
+
+            Console.WriteLine(
+                "Attente réponse (5 secondes)..."
+            );
+
+            byte[] buffer = new byte[256];
+
+            using CancellationTokenSource cts =
                 new CancellationTokenSource(
                     TimeSpan.FromSeconds(5));
 
             try
             {
-                int bytesRead =
+                int count =
                     await input.ReadAsync(
                         buffer,
                         0,
                         buffer.Length,
-                        timeout.Token);
+                        cts.Token);
 
-                if (bytesRead == 0)
+                Console.WriteLine();
+
+                if (count > 0)
                 {
                     Console.WriteLine(
-                        "ℹ️ L'iPhone n'a envoyé aucune donnée."
-                    );
-                }
-                else
-                {
-                    Console.WriteLine(
-                        $"🟢 {bytesRead} octet(s) reçus !"
+                        $"🟢 Réponse reçue : {count} octets"
                     );
 
-                    Console.WriteLine();
-                    Console.WriteLine(
-                        "Données reçues (HEX) :"
-                    );
-
-                    Console.WriteLine();
-
-                    for (int i = 0; i < bytesRead; i++)
+                    for (int i = 0; i < count; i++)
                     {
                         Console.Write(
                             $"{buffer[i]:X2} "
                         );
-
-                        if ((i + 1) % 16 == 0)
-                            Console.WriteLine();
                     }
 
                     Console.WriteLine();
@@ -209,37 +191,21 @@ internal class Program
             catch (OperationCanceledException)
             {
                 Console.WriteLine(
-                    "ℹ️ Aucun paquet reçu pendant les 5 secondes."
+                    "ℹ️ Aucune réponse reçue."
                 );
             }
-
-            iapService.Dispose();
         }
         catch (Exception ex)
         {
             Console.WriteLine();
-            Console.WriteLine(
-                "🔴 ERREUR"
-            );
-
-            Console.WriteLine();
-            Console.WriteLine(
-                $"Type    : {ex.GetType().Name}"
-            );
-
-            Console.WriteLine(
-                $"Message : {ex.Message}"
-            );
-
-            Console.WriteLine(
-                $"Code    : 0x{ex.HResult:X8}"
-            );
+            Console.WriteLine("🔴 ERREUR");
+            Console.WriteLine(ex.Message);
         }
 
-        WaitAndExit();
+        Exit();
     }
 
-    private static void WaitAndExit()
+    static void Exit()
     {
         Console.WriteLine();
         Console.WriteLine(

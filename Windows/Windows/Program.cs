@@ -1,9 +1,12 @@
 using System;
+using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Bluetooth.Rfcomm;
 using Windows.Networking.Sockets;
+using Windows.Storage.Streams;
 
 namespace iPhoneWindowsUnlock;
 
@@ -26,7 +29,8 @@ internal class Program
             Console.WriteLine("Recherche de votre iPhone...");
             Console.WriteLine();
 
-            string selector = BluetoothDevice.GetDeviceSelector();
+            string selector =
+                BluetoothDevice.GetDeviceSelector();
 
             DeviceInformationCollection devices =
                 await DeviceInformation.FindAllAsync(selector);
@@ -58,30 +62,35 @@ internal class Program
             Console.WriteLine($"ID  : {iPhone.Id}");
             Console.WriteLine();
 
-            Console.WriteLine("Ouverture du périphérique Bluetooth...");
+            Console.WriteLine(
+                "Ouverture du périphérique Bluetooth..."
+            );
 
             using BluetoothDevice? bluetoothDevice =
                 await BluetoothDevice.FromIdAsync(iPhone.Id);
 
             if (bluetoothDevice == null)
             {
-                Console.WriteLine("❌ Impossible d'ouvrir l'iPhone.");
+                Console.WriteLine(
+                    "❌ Impossible d'ouvrir l'iPhone."
+                );
+
                 WaitAndExit();
                 return;
             }
 
-            Console.WriteLine("✅ Périphérique Bluetooth ouvert !");
-            Console.WriteLine();
+            Console.WriteLine(
+                "✅ Périphérique Bluetooth ouvert !"
+            );
 
-            Console.WriteLine("Recherche des services RFCOMM...");
+            Console.WriteLine();
+            Console.WriteLine(
+                "Recherche du service Wireless iAP..."
+            );
 
             var result =
                 await bluetoothDevice.GetRfcommServicesAsync(
                     BluetoothCacheMode.Uncached);
-
-            Console.WriteLine();
-            Console.WriteLine(
-                $"✅ {result.Services.Count} services RFCOMM trouvés.");
 
             RfcommDeviceService? iapService = null;
 
@@ -90,9 +99,6 @@ internal class Program
                 string uuid = service.ServiceId
                     .AsString()
                     .Trim('{', '}');
-
-                Console.WriteLine();
-                Console.WriteLine($"Service : {uuid}");
 
                 if (uuid.Equals(
                     IapServiceUuid,
@@ -107,37 +113,26 @@ internal class Program
 
             if (iapService == null)
             {
-                Console.WriteLine();
                 Console.WriteLine(
-                    "❌ Service Wireless iAP introuvable.");
+                    "❌ Service Wireless iAP introuvable."
+                );
+
                 WaitAndExit();
                 return;
             }
 
             Console.WriteLine();
-            Console.WriteLine("=================================");
-            Console.WriteLine("       SERVICE WIRELESS iAP");
-            Console.WriteLine("=================================");
-            Console.WriteLine();
-
             Console.WriteLine(
-                $"UUID : {iapService.ServiceId.AsString()}");
-
-            Console.WriteLine(
-                $"Hôte : {iapService.ConnectionHostName}");
-
-            Console.WriteLine(
-                $"Service : {iapService.ConnectionServiceName}");
-
-            Console.WriteLine(
-                $"Protection : {iapService.ProtectionLevel}");
+                "✅ Service Wireless iAP trouvé."
+            );
 
             Console.WriteLine();
             Console.WriteLine(
-                "Tentative de connexion RFCOMM...");
-            Console.WriteLine();
+                "Ouverture de la connexion RFCOMM..."
+            );
 
-            using StreamSocket socket = new StreamSocket();
+            using StreamSocket socket =
+                new StreamSocket();
 
             await socket.ConnectAsync(
                 iapService.ConnectionHostName,
@@ -145,26 +140,100 @@ internal class Program
                 SocketProtectionLevel
                     .BluetoothEncryptionWithAuthentication);
 
-            Console.WriteLine("🟢 CONNEXION RFCOMM RÉUSSIE !");
-            Console.WriteLine();
-
-            Console.WriteLine(
-                "Le service Wireless iAP accepte la connexion.");
-
             Console.WriteLine();
             Console.WriteLine(
-                "Aucune donnée n'a été envoyée à l'iPhone.");
+                "🟢 CONNEXION RFCOMM RÉUSSIE !"
+            );
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "Écoute de l'iPhone pendant 5 secondes..."
+            );
+
+            Console.WriteLine(
+                "(Aucune donnée ne sera envoyée.)"
+            );
+
+            Console.WriteLine();
+
+            using Stream input =
+                socket.InputStream.AsStreamForRead();
+
+            byte[] buffer = new byte[4096];
+
+            using CancellationTokenSource timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(5));
+
+            try
+            {
+                int bytesRead =
+                    await input.ReadAsync(
+                        buffer,
+                        0,
+                        buffer.Length,
+                        timeout.Token);
+
+                if (bytesRead == 0)
+                {
+                    Console.WriteLine(
+                        "ℹ️ L'iPhone n'a envoyé aucune donnée."
+                    );
+                }
+                else
+                {
+                    Console.WriteLine(
+                        $"🟢 {bytesRead} octet(s) reçus !"
+                    );
+
+                    Console.WriteLine();
+                    Console.WriteLine(
+                        "Données reçues (HEX) :"
+                    );
+
+                    Console.WriteLine();
+
+                    for (int i = 0; i < bytesRead; i++)
+                    {
+                        Console.Write(
+                            $"{buffer[i]:X2} "
+                        );
+
+                        if ((i + 1) % 16 == 0)
+                            Console.WriteLine();
+                    }
+
+                    Console.WriteLine();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine(
+                    "ℹ️ Aucun paquet reçu pendant les 5 secondes."
+                );
+            }
 
             iapService.Dispose();
         }
         catch (Exception ex)
         {
             Console.WriteLine();
-            Console.WriteLine("🔴 ÉCHEC DE LA CONNEXION");
+            Console.WriteLine(
+                "🔴 ERREUR"
+            );
+
             Console.WriteLine();
-            Console.WriteLine($"Type    : {ex.GetType().Name}");
-            Console.WriteLine($"Message : {ex.Message}");
-            Console.WriteLine($"Code    : 0x{ex.HResult:X8}");
+            Console.WriteLine(
+                $"Type    : {ex.GetType().Name}"
+            );
+
+            Console.WriteLine(
+                $"Message : {ex.Message}"
+            );
+
+            Console.WriteLine(
+                $"Code    : 0x{ex.HResult:X8}"
+            );
         }
 
         WaitAndExit();
@@ -173,7 +242,10 @@ internal class Program
     private static void WaitAndExit()
     {
         Console.WriteLine();
-        Console.WriteLine("Appuyez sur une touche pour quitter...");
+        Console.WriteLine(
+            "Appuyez sur une touche pour quitter..."
+        );
+
         Console.ReadKey();
     }
 }

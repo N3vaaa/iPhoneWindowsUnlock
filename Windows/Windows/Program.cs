@@ -61,7 +61,9 @@ internal class Program
             Console.WriteLine($"ID  : {iPhone.Id}");
             Console.WriteLine();
 
-            Console.WriteLine("Ouverture du périphérique Bluetooth...");
+            Console.WriteLine(
+                "Ouverture du périphérique Bluetooth..."
+            );
 
             using BluetoothDevice? bluetoothDevice =
                 await BluetoothDevice.FromIdAsync(iPhone.Id);
@@ -69,16 +71,23 @@ internal class Program
             if (bluetoothDevice == null)
             {
                 Console.WriteLine();
-                Console.WriteLine("❌ Impossible d'ouvrir l'iPhone.");
+                Console.WriteLine(
+                    "❌ Impossible d'ouvrir l'iPhone."
+                );
+
                 WaitAndExit();
                 return;
             }
 
             Console.WriteLine();
-            Console.WriteLine("✅ Périphérique Bluetooth ouvert !");
-            Console.WriteLine();
+            Console.WriteLine(
+                "✅ Périphérique Bluetooth ouvert !"
+            );
 
-            Console.WriteLine("Recherche des services RFCOMM...");
+            Console.WriteLine();
+            Console.WriteLine(
+                "Recherche des services RFCOMM..."
+            );
 
             var result =
                 await bluetoothDevice.GetRfcommServicesAsync();
@@ -87,11 +96,18 @@ internal class Program
             Console.WriteLine(
                 $"✅ {result.Services.Count} services RFCOMM trouvés."
             );
+
             Console.WriteLine();
 
             foreach (RfcommDeviceService service in result.Services)
             {
-                string uuid = service.ServiceId.AsString();
+                string uuid = service.ServiceId
+                    .AsString()
+                    .Trim('{', '}');
+
+                Console.WriteLine(
+                    $"Service détecté : {uuid}"
+                );
 
                 if (uuid.Equals(
                         Service2Uuid,
@@ -101,20 +117,23 @@ internal class Program
                         service,
                         "SERVICE 2"
                     );
+
+                    continue;
                 }
-                else if (uuid.Equals(
-                             Service3Uuid,
-                             StringComparison.OrdinalIgnoreCase))
+
+                if (uuid.Equals(
+                        Service3Uuid,
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     await InspectServiceAsync(
                         service,
                         "SERVICE 3"
                     );
+
+                    continue;
                 }
-                else
-                {
-                    service.Dispose();
-                }
+
+                service.Dispose();
             }
         }
         catch (Exception ex)
@@ -122,8 +141,12 @@ internal class Program
             Console.WriteLine();
             Console.WriteLine("❌ ERREUR");
             Console.WriteLine();
-            Console.WriteLine($"Type    : {ex.GetType().Name}");
-            Console.WriteLine($"Message : {ex.Message}");
+            Console.WriteLine(
+                $"Type    : {ex.GetType().Name}"
+            );
+            Console.WriteLine(
+                $"Message : {ex.Message}"
+            );
         }
 
         WaitAndExit();
@@ -135,9 +158,17 @@ internal class Program
     {
         try
         {
-            Console.WriteLine("=================================");
-            Console.WriteLine($"        {serviceName}");
-            Console.WriteLine("=================================");
+            Console.WriteLine();
+            Console.WriteLine(
+                "================================="
+            );
+            Console.WriteLine(
+                $"        {serviceName}"
+            );
+            Console.WriteLine(
+                "================================="
+            );
+
             Console.WriteLine();
 
             Console.WriteLine(
@@ -161,7 +192,10 @@ internal class Program
             );
 
             Console.WriteLine();
-            Console.WriteLine("Lecture des attributs SDP...");
+            Console.WriteLine(
+                "Lecture des attributs SDP..."
+            );
+
             Console.WriteLine();
 
             var attributes =
@@ -169,7 +203,8 @@ internal class Program
                     BluetoothCacheMode.Uncached
                 );
 
-            if (attributes == null || attributes.Count == 0)
+            if (attributes == null ||
+                attributes.Count == 0)
             {
                 Console.WriteLine(
                     "⚠️ Aucun attribut SDP disponible."

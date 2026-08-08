@@ -19,6 +19,23 @@ jobs:
           mkdir App
           cp iOS/iPhoneWindowsUnlockApp.swift App/iPhoneWindowsUnlockApp.swift
 
+      - name: Créer Info plist
+        run: |
+          cat > Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>iPhoneWindowsUnlock</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.n3vaaa.iPhoneWindowsUnlock</string>
+              <key>UILaunchStoryboardName</key>
+              <string></string>
+          </dict>
+          </plist>
+          EOF
+
       - name: Créer projet Xcode
         run: |
           printf "name: iPhoneWindowsUnlock\n" > project.yml
@@ -31,9 +48,17 @@ jobs:
           printf "    deploymentTarget: '17.0'\n" >> project.yml
           printf "    sources:\n" >> project.yml
           printf "      - App\n" >> project.yml
+          printf "    info:\n" >> project.yml
+          printf "      path: Info.plist\n" >> project.yml
 
       - name: Générer Xcode
         run: xcodegen generate
 
       - name: Compiler
-        run: xcodebuild -project iPhoneWindowsUnlock.xcodeproj -scheme iPhoneWindowsUnlock -sdk iphoneos build CODE_SIGNING_ALLOWED=NO
+        run: |
+          xcodebuild \
+          -project iPhoneWindowsUnlock.xcodeproj \
+          -scheme iPhoneWindowsUnlock \
+          -sdk iphoneos \
+          build \
+          CODE_SIGNING_ALLOWED=NO

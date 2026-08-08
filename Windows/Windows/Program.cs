@@ -42,8 +42,8 @@ internal class Program
             {
                 Console.WriteLine("❌ Aucun iPhone détecté.");
                 Console.WriteLine();
-                Console.WriteLine("Vérifiez que le Bluetooth est activé");
-                Console.WriteLine("sur l'iPhone et sur le PC.");
+                Console.WriteLine("Vérifiez que l'iPhone est allumé");
+                Console.WriteLine("et que le Bluetooth est activé.");
             }
             else
             {
@@ -52,14 +52,42 @@ internal class Program
                 Console.WriteLine($"Nom : {iPhone.Name}");
                 Console.WriteLine($"ID  : {iPhone.Id}");
                 Console.WriteLine();
-                Console.WriteLine("📱 L'iPhone est visible par Windows.");
+
+                Console.WriteLine("Tentative d'ouverture du périphérique Bluetooth...");
+
+                BluetoothDevice? bluetoothDevice =
+                    await BluetoothDevice.FromIdAsync(iPhone.Id);
+
+                if (bluetoothDevice == null)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("⚠️ Windows a trouvé l'iPhone,");
+                    Console.WriteLine("mais ne peut pas ouvrir son périphérique Bluetooth.");
+                }
+                else
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("✅ Périphérique Bluetooth ouvert !");
+                    Console.WriteLine();
+                    Console.WriteLine($"Nom : {bluetoothDevice.Name}");
+                    Console.WriteLine(
+                        $"Adresse Bluetooth : 0x{bluetoothDevice.BluetoothAddress:X}"
+                    );
+                    Console.WriteLine();
+                    Console.WriteLine("📱 Windows peut maintenant accéder");
+                    Console.WriteLine("au périphérique Bluetooth de l'iPhone.");
+
+                    bluetoothDevice.Dispose();
+                }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("❌ Erreur pendant la recherche.");
             Console.WriteLine();
-            Console.WriteLine(ex.Message);
+            Console.WriteLine("❌ Erreur pendant la communication Bluetooth.");
+            Console.WriteLine();
+            Console.WriteLine($"Type : {ex.GetType().Name}");
+            Console.WriteLine($"Message : {ex.Message}");
         }
 
         Console.WriteLine();
